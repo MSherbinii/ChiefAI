@@ -80,15 +80,23 @@ async def gather_brief_context(sb, user_id: str) -> str:
         parts.append(f'WORKOUTS this week: {len(workouts.data)}')
 
     # Communications
-    stale = sb.table('lg_communications').select('subject, channel, staleness_days, participants') \
+    cutoff_3d = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+    stale = sb.table('lg_communications').select('subject, channel, last_message_at, participants') \
         .eq('user_id', user_id).eq('status', 'active') \
-        .gte('staleness_days', 3).order('staleness_days', desc=True).limit(5).execute()
+        .lte('last_message_at', cutoff_3d).order('last_message_at', desc=False).limit(5).execute()
 
     if stale.data:
         parts.append(f'STALE COMMS ({len(stale.data)} threads):')
         for t in stale.data:
             subj = (t.get('subject') or '(no subject)')[:50]
-            parts.append(f'  [{t["staleness_days"]}d] "{subj}" via {t["channel"]}')
+            staleness = 0
+            if t.get('last_message_at'):
+                try:
+                    lma = datetime.fromisoformat(t['last_message_at'].replace('Z', '+00:00'))
+                    staleness = (datetime.now(timezone.utc) - lma).days
+                except Exception:
+                    pass
+            parts.append(f'  [{staleness}d] "{subj}" via {t["channel"]}')
 
     # Projects
     commits = sb.table('lg_health').select('value, recorded_at').eq('user_id', user_id) \

@@ -18,16 +18,29 @@ class EchoAgent(BaseAgent):
             return 'No user context available.'
         sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
+        cutoff_3d = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        cutoff_2d = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+
         stale = sb.table('lg_communications').select(
             'thread_id, channel, participants, subject, last_message_at, staleness_days'
         ).eq('user_id', user_id).eq('status', 'active') \
-         .gte('staleness_days', 3) \
-         .order('staleness_days', desc=True).limit(10).execute()
+         .lte('last_message_at', cutoff_3d) \
+         .order('last_message_at', desc=False).limit(10).execute()
+
+        # Compute current staleness at read time (trigger keeps column fresh on writes,
+        # but rows not touched since last upsert may drift)
+        for t in stale.data or []:
+            if t.get('last_message_at'):
+                try:
+                    lma = datetime.fromisoformat(t['last_message_at'].replace('Z', '+00:00'))
+                    t['staleness_days'] = (datetime.now(timezone.utc) - lma).days
+                except Exception:
+                    t['staleness_days'] = t.get('staleness_days') or 0
 
         recent = sb.table('lg_communications').select(
             'subject, channel, participants, last_message_at'
         ).eq('user_id', user_id).eq('status', 'active') \
-         .lte('staleness_days', 2) \
+         .gte('last_message_at', cutoff_2d) \
          .order('last_message_at', desc=True).limit(5).execute()
 
         lines = ['=== COMMUNICATION CONTEXT ===']

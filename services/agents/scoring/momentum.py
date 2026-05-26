@@ -70,9 +70,10 @@ async def calculate_work_score(sb, user_id: str) -> tuple[int, str]:
     score = commit_contrib
     reason_parts.append(f'{commit_count} commits this week')
 
-    stale = sb.table('lg_communications').select('staleness_days') \
+    cutoff_5d = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+    stale = sb.table('lg_communications').select('last_message_at') \
         .eq('user_id', user_id).eq('status', 'active') \
-        .gte('staleness_days', 5).execute()
+        .lte('last_message_at', cutoff_5d).execute()
     stale_count = len(stale.data) if stale.data else 0
     staleness_penalty = min(stale_count * 5, 30)
     score += (60 - staleness_penalty)
