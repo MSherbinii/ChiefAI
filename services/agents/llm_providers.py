@@ -113,7 +113,7 @@ def classify_error_string(raw: Optional[str]) -> LLMErrorCode:
 BEDROCK_MODELS: dict[str, str] = {
     'routing': os.getenv('CHIEF_ROUTING_MODEL', 'eu.anthropic.claude-haiku-4-5-20251001-v1:0'),
     'agent':   os.getenv('CHIEF_AGENT_MODEL',   'eu.anthropic.claude-haiku-4-5-20251001-v1:0'),
-    'brief':   os.getenv('CHIEF_BRIEF_MODEL',   'eu.anthropic.claude-sonnet-4-6-20251231-v1:0'),
+    'brief':   os.getenv('CHIEF_BRIEF_MODEL',   'eu.anthropic.claude-sonnet-4-5-20250929-v1:0'),
 }
 
 # Anthropic direct API model IDs

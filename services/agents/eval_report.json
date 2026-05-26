@@ -1,16 +1,16 @@
 {
-  "timestamp": "2026-05-26T17:39:11.682742",
-  "total": 6,
-  "passed": 5,
+  "timestamp": "2026-05-26T21:19:46.064442",
+  "total": 10,
+  "passed": 9,
   "failed": 1,
-  "pass_rate": 83.3,
-  "avg_quality_score": 95.8,
+  "pass_rate": 90.0,
+  "avg_quality_score": 97.5,
   "results": [
     {
       "test_name": "recovery_status_with_data",
       "expected_agent": "Pulse",
       "actual_agent": "Pulse",
-      "response_preview": "Your recovery is **72%** as of this morning\u2014solid and stable. Your HRV is sitting at 45 ms and resting heart rate at 52 bpm, which tells me you're bou",
+      "response_preview": "Your recovery is **72%** this morning\u2014solid green zone. Your HRV is sitting at 45 ms and resting heart rate at 52 bpm, both steady. You're tracking st",
       "quality_score": 100,
       "passed": true,
       "agent_correct": true,
@@ -20,18 +20,20 @@
       "test_name": "training_recommendation_low_recovery",
       "expected_agent": "Pulse",
       "actual_agent": "Pulse",
-      "response_preview": "Not ideal. Your recovery is sitting at 38% with an HRV of 28 ms\u2014that's on the lower end for heavy compound work. You're also averaging only 310 minute",
+      "response_preview": "Not ideal\u2014your recovery is sitting at 38% with an HRV of 28 ms, which is below your baseline. That's your nervous system saying it's still taxed from ",
       "quality_score": 100,
-      "passed": true,
+      "passed": false,
       "agent_correct": true,
-      "issues": []
+      "issues": [
+        "Missing required term: \"light\""
+      ]
     },
     {
       "test_name": "no_data_graceful",
       "expected_agent": "Pulse",
       "actual_agent": "Pulse",
-      "response_preview": "I don't have access to your WHOOP data yet\u2014it looks like your account isn't connected or hasn't synced recently. Once you link WHOOP, I'll be able to ",
-      "quality_score": 80,
+      "response_preview": "I don't have any health data connected yet\u2014your WHOOP hasn't synced or isn't linked to this account. Once you connect it, I'll be able to pull your HR",
+      "quality_score": 100,
       "passed": true,
       "agent_correct": true,
       "issues": []
@@ -40,19 +42,17 @@
       "test_name": "stale_thread_summary",
       "expected_agent": "Echo",
       "actual_agent": "Echo",
-      "response_preview": "# Your Attention-Needed Emails\n\nYou have **3 stale threads** that haven't been touched in a while:\n\n## \ud83d\udd34 Most Urgent\n**\"Invoice #2024-089\"** \u2014 account",
-      "quality_score": 100,
-      "passed": false,
+      "response_preview": "Based on your actual inbox, here are **3 threads needing attention**:\n\n**1. \"Thesis evaluation chapter feedback\"** \n   - From: prof.westermann@tum.de\n",
+      "quality_score": 95,
+      "passed": true,
       "agent_correct": true,
-      "issues": [
-        "Missing required term: \"professor\""
-      ]
+      "issues": []
     },
     {
       "test_name": "draft_not_send",
       "expected_agent": "Echo",
       "actual_agent": "Echo",
-      "response_preview": "# ECHO: Email Draft\n\nI'd like to help you reply to Prof. Westermann, but I need a bit more direction to sound authentically like you.\n\n**What I found:",
+      "response_preview": "I can see the thread \"Thesis evaluation chapter feedback\" from prof.westermann@tum.de (7 days old in your inbox).\n\nHowever, I need more context to dra",
       "quality_score": 95,
       "passed": true,
       "agent_correct": true,
@@ -62,7 +62,47 @@
       "test_name": "commit_velocity_with_data",
       "expected_agent": "Forge",
       "actual_agent": "Forge",
-      "response_preview": "# Your GitHub Velocity This Week\n\n**Strong momentum.** You're at **12 commits across 2 repos** \u2014 that's +4 commits vs your previous period. You're acc",
+      "response_preview": "# Your GitHub Velocity This Week: **+50% \u2191**\n\n**12 commits** across 2 repos \u2014 solid week. You're accelerating (vs. 8 commits previous period).\n\n## Bre",
+      "quality_score": 95,
+      "passed": true,
+      "agent_correct": true,
+      "issues": []
+    },
+    {
+      "test_name": "subscription_detection",
+      "expected_agent": "Ledger",
+      "actual_agent": "Ledger",
+      "response_preview": "You're paying for **\u20ac47.94/month across 3 active subscriptions**:\n\n1. **Audible** - \u20ac9.99/mo (\u26a0\ufe0f **UNUSED** - 62 days idle)\n2. Two other subscriptions",
+      "quality_score": 95,
+      "passed": true,
+      "agent_correct": true,
+      "issues": []
+    },
+    {
+      "test_name": "affordability_check_with_context",
+      "expected_agent": "Ledger",
+      "actual_agent": "Ledger",
+      "response_preview": "No, not right now.\n\n**Here's the math:**\n\nYour current available headroom is **\u20ac47** after accounting for upcoming obligations. A \u20ac200 jacket would pu",
+      "quality_score": 95,
+      "passed": true,
+      "agent_correct": true,
+      "issues": []
+    },
+    {
+      "test_name": "insurance_number_lookup",
+      "expected_agent": "Clerk",
+      "actual_agent": "Clerk",
+      "response_preview": "Your health insurance number is **123456789**.\n\nThis is registered in your document library from your stored insurance card.\n\nIs there anything else y",
+      "quality_score": 100,
+      "passed": true,
+      "agent_correct": true,
+      "issues": []
+    },
+    {
+      "test_name": "letter_extraction_guidance",
+      "expected_agent": "Clerk",
+      "actual_agent": "Clerk",
+      "response_preview": "# TK Letter - Let's Sort This Out\n\nI can help you, but I need to see the letter first. Can you **share it with me** or tell me:\n\n1. **What's the main ",
       "quality_score": 100,
       "passed": true,
       "agent_correct": true,
