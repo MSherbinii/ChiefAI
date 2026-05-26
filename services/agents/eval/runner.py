@@ -103,11 +103,15 @@ async def run_all_evaluations() -> dict:
     from agents.pulse import PulseAgent
     from agents.echo import EchoAgent
     from agents.forge import ForgeAgent
+    from agents.ledger import LedgerAgent
+    from agents.clerk import ClerkAgent
 
     agent_map = {
         'Pulse': PulseAgent(),
         'Echo': EchoAgent(),
         'Forge': ForgeAgent(),
+        'Ledger': LedgerAgent(),
+        'Clerk': ClerkAgent(),
     }
 
     results = []

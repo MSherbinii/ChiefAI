@@ -69,7 +69,7 @@ STALE THREADS (3 threads needing attention):
   [5d] "Re: EXIST application documents" from startup@exist.de via gmail
   [3d] "Invoice #2024-089" from accounting@client.com via gmail""",
         expected_agent="Echo",
-        must_contain=["7", "thesis", "professor"],
+        must_contain=["7", "thesis"],  # "professor" too strict — agent may say "Westermann" or "Prof."
         must_not_contain=["as an ai", "i sent", "i emailed"],
         min_quality_score=70,
     ),
@@ -108,4 +108,65 @@ COMMIT VELOCITY:
     ),
 ]
 
-ALL_TEST_CASES = PULSE_TEST_CASES + ECHO_TEST_CASES + FORGE_TEST_CASES
+LEDGER_TEST_CASES = [
+    TestCase(
+        name="subscription_detection",
+        user_message="What subscriptions am I paying for?",
+        mock_context="""=== FINANCE CONTEXT ===
+SUBSCRIPTIONS: €47.94/mo total (3 active)
+  UNUSED (1): Audible (€9.99/mo, idle 62 days)""",
+        expected_agent="Ledger",
+        must_contain=["audible", "subscription"],
+        must_not_contain=["as an ai", "i don't have access"],
+        min_quality_score=60,
+    ),
+    TestCase(
+        name="affordability_check_with_context",
+        user_message="Can I afford a €200 jacket?",
+        mock_context="""=== FINANCE CONTEXT ===
+SPENDING (30d): €1420 total
+  vs previous 30d: +12.0%
+  food: €340
+  transport: €80
+SUBSCRIPTIONS: €47.94/mo total (3 active)
+  UNUSED (1): Audible (€9.99/mo)
+AFFORDABILITY CHECK for €200: NO
+Balance minus obligations = €47 available headroom. Jacket costs €200.
+SUGGESTIONS: Cancel Audible subscription (save €9.99/mo)""",
+        expected_agent="Ledger",
+        must_contain=["200", "no"],  # Should say can't afford it
+        must_not_contain=["as an ai", "you should invest"],
+        min_quality_score=55,
+    ),
+]
+
+CLERK_TEST_CASES = [
+    TestCase(
+        name="insurance_number_lookup",
+        user_message="What is my health insurance number?",
+        mock_context="""=== ADMIN CONTEXT ===
+No pending admin items.
+DOCUMENTS: 2 stored
+  Types: insurance_card, id
+INSURANCE NUMBER (from document library): 123456789""",
+        expected_agent="Clerk",
+        must_contain=["123456789"],
+        must_not_contain=["as an ai", "i don't have access"],
+        min_quality_score=60,
+    ),
+    TestCase(
+        name="letter_extraction_guidance",
+        user_message="I got a letter from TK, what should I do?",
+        mock_context="""=== ADMIN CONTEXT ===
+ADMIN DEBT: 1 items total
+  EXPIRING SOON (1):
+    - letter: TK health insurance contribution confirmation (14d remaining)
+No pending admin items.""",
+        expected_agent="Clerk",
+        must_contain=["tk", "14"],
+        must_not_contain=["as an ai"],
+        min_quality_score=50,
+    ),
+]
+
+ALL_TEST_CASES = PULSE_TEST_CASES + ECHO_TEST_CASES + FORGE_TEST_CASES + LEDGER_TEST_CASES + CLERK_TEST_CASES

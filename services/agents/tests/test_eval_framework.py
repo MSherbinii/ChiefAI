@@ -10,7 +10,7 @@ os.environ.setdefault('AWS_DEFAULT_REGION', 'eu-central-1')
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
-from eval.test_cases import ALL_TEST_CASES, PULSE_TEST_CASES, ECHO_TEST_CASES, FORGE_TEST_CASES, TestCase
+from eval.test_cases import ALL_TEST_CASES, PULSE_TEST_CASES, ECHO_TEST_CASES, FORGE_TEST_CASES, LEDGER_TEST_CASES, CLERK_TEST_CASES, TestCase
 
 
 class TestEvalFramework:
@@ -66,7 +66,7 @@ class TestEvalFramework:
 
     def test_all_test_cases_in_all_list(self):
         """Verify ALL_TEST_CASES aggregates all agent test lists."""
-        combined = PULSE_TEST_CASES + ECHO_TEST_CASES + FORGE_TEST_CASES
+        combined = PULSE_TEST_CASES + ECHO_TEST_CASES + FORGE_TEST_CASES + LEDGER_TEST_CASES + CLERK_TEST_CASES
         assert len(ALL_TEST_CASES) == len(combined), \
             "ALL_TEST_CASES count doesn't match sum of individual lists"
 
