@@ -8,3 +8,10 @@ __pycache__/
 dist/
 .DS_Store
 apps/web/.next/
+venv/
+.env.production
+.env.staging
+.env*.local
+*.egg-info/
+.pytest_cache/
+.turbo/

@@ -3,10 +3,10 @@
   "private": true,
   "workspaces": ["apps/*", "services/*"],
   "scripts": {
-    "dev:web": "cd apps/web && npm run dev",
-    "dev:agents": "cd services/agents && uvicorn main:app --reload --port 8001",
-    "dev": "concurrently \"npm run dev:web\" \"npm run dev:agents\"",
-    "build:web": "cd apps/web && npm run build"
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:agents": "uvicorn services/agents/main:app --reload --port 8001",
+    "dev": "concurrently -n web,agents -c cyan,yellow --kill-others-on-fail \"npm run dev:web\" \"npm run dev:agents\"",
+    "build:web": "npm run build --workspace=apps/web"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
