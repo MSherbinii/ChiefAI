@@ -1,0 +1,14 @@
+{
+  "name": "chief",
+  "private": true,
+  "workspaces": ["apps/*", "services/*"],
+  "scripts": {
+    "dev:web": "cd apps/web && npm run dev",
+    "dev:agents": "cd services/agents && uvicorn main:app --reload --port 8001",
+    "dev": "concurrently \"npm run dev:web\" \"npm run dev:agents\"",
+    "build:web": "cd apps/web && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
