@@ -8,7 +8,6 @@ import json
 import os
 from datetime import datetime, timezone, timedelta
 from supabase import create_client
-from scoring.momentum import calculate_momentum
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -152,6 +151,8 @@ async def generate_morning_brief(user_id: str, user_name: str = 'there') -> dict
         'greeting': brief_data.get('greeting', ''),
         'sections': brief_data.get('sections', []),
         'life_debt': brief_data.get('life_debt', {'total': 0, 'items': []}),
+        'best_move': brief_data.get('best_move', ''),
+        'patterns': brief_data.get('patterns', []),
         'generated_by': 'claude',
         'model': 'claude-sonnet-4-6',
         'created_at': datetime.now(timezone.utc).isoformat(),

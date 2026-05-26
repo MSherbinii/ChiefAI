@@ -35,27 +35,40 @@ export function ApprovalQueueServer({ items }: { items: QueueRow[] }) {
   async function handleApprove(id: string) {
     const item = localItems.find(i => i.id === id);
     setLocalItems(prev => prev.filter(i => i.id !== id));
-    await fetch('/api/queue/approve', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    toast.success(`Approved: ${item?.title}`);
+    try {
+      const res = await fetch('/api/queue/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      toast.success(`Approved: ${item?.title}`);
+    } catch {
+      setLocalItems(prev => item ? [...prev, item] : prev);
+      toast.error('Failed to approve. Try again.');
+    }
   }
 
   async function handleReject(id: string) {
     const item = localItems.find(i => i.id === id);
     setLocalItems(prev => prev.filter(i => i.id !== id));
-    await fetch('/api/queue/reject', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    toast(`Skipped: ${item?.title}`);
+    try {
+      const res = await fetch('/api/queue/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      toast(`Skipped: ${item?.title}`);
+    } catch {
+      setLocalItems(prev => item ? [...prev, item] : prev);
+      toast.error('Failed to skip. Try again.');
+    }
   }
 
   async function handleAutoApprove(id: string) {
     const item = localItems.find(i => i.id === id);
+    setLocalItems(prev => prev.filter(i => i.id !== id));
     await fetch('/api/queue/auto-approve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

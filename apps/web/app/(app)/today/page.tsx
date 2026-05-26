@@ -65,8 +65,8 @@ export default async function TodayPage() {
 
   const sections: AiBriefSection[] = (brief?.sections as AiBriefSection[]) ?? [];
   const lifeDebt = brief?.life_debt as { total: number; items: { domain: string; count: number; description: string }[] } | null;
-  const bestMove = (brief as any)?.best_move as string | undefined;
-  const patterns = (brief as any)?.patterns as string[] | undefined;
+  const bestMove = brief?.best_move as string | undefined;
+  const patterns = brief?.patterns as string[] | undefined;
 
   const queueRows = (queueItems ?? []).map(i => ({
     id: i.id as string,

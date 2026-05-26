@@ -1,7 +1,7 @@
 import httpx
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from supabase import create_client
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
@@ -60,9 +60,11 @@ async def sync_gmail(user_id: str):
         if expiry < datetime.now(timezone.utc):
             new_tokens = await refresh_google_token(token_row['refresh_token'])
             access_token = new_tokens.get('access_token', access_token)
+            new_expires_in = new_tokens.get('expires_in', 3600)
+            new_expiry = (datetime.now(timezone.utc) + timedelta(seconds=new_expires_in)).isoformat()
             sb.table('connector_tokens').update({
                 'access_token': access_token,
-                'token_expiry': datetime.now(timezone.utc).isoformat(),
+                'token_expiry': new_expiry,
             }).eq('user_id', user_id).eq('connector', 'gmail').execute()
 
     sb.table('connector_tokens').update({'sync_status': 'syncing'}).eq('user_id', user_id).eq('connector', 'gmail').execute()
