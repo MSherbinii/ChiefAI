@@ -5,6 +5,15 @@ from agents.base import BaseAgent
 from models import ChatRequest, ChatResponse
 from llm import get_client, AGENT_MODEL
 from tools.project_tools import get_commit_velocity, get_active_projects, flag_stagnant_repos
+from response_models import ProjectStatus
+from pydantic_agents import run_structured
+
+_VELOCITY_KEYWORDS = [
+    "velocity", "how are my projects", "project status",
+    "commits this week", "how many commits",
+    "project update", "what's my progress", "whats my progress",
+    "repo status", "github activity",
+]
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -62,7 +71,7 @@ class ForgeAgent(BaseAgent):
         return '\n'.join(lines)
 
     async def handle(self, request: ChatRequest) -> ChatResponse:
-        client = get_client()
+        msg_lower = request.message.lower()
         context = await self.build_full_context(request.user_id or '', request.message)
 
         # Enrich context with tool-sourced velocity trend and stagnant repo flags
@@ -85,6 +94,35 @@ class ForgeAgent(BaseAgent):
                     risk_flag = ' [AT RISK]' if s.get('at_risk') else ''
                     context += f'\n  - {s["repo"]}{risk_flag}'
 
+        # --- Structured output path for velocity / project-status queries ---
+        use_structured = request.user_id and any(
+            kw in msg_lower for kw in _VELOCITY_KEYWORDS
+        )
+        if use_structured:
+            try:
+                result: ProjectStatus = await run_structured(
+                    ProjectStatus,
+                    self.system_prompt,
+                    request.message,
+                    context=context,
+                )
+                parts = [result.summary]
+                if result.commits_this_week:
+                    parts.append(
+                        f'{result.commits_this_week} commit(s) this week '
+                        f'across {result.active_projects} active project(s). '
+                        f'Trend: {result.velocity_trend}.'
+                    )
+                if result.deadline_risk:
+                    parts.append(f'Risk: {result.deadline_risk}')
+                parts.append(f'→ {result.next_action}')
+                reply = '\n\n'.join(parts)
+                return ChatResponse(reply=reply, agent='Forge', confidence=result.confidence)
+            except Exception:
+                pass  # Fall through to standard LLM path
+
+        # --- Standard LLM path ---
+        client = get_client()
         messages = [{'role': m.role, 'content': m.content} for m in request.history]
         messages.append({'role': 'user', 'content': request.message})
 

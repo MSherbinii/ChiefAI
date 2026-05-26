@@ -5,6 +5,15 @@ from agents.base import BaseAgent
 from models import ChatRequest, ChatResponse
 from llm import get_client, AGENT_MODEL
 from tools.comms_tools import get_stale_threads, create_draft_in_queue
+from response_models import CommunicationAnalysis
+from pydantic_agents import run_structured
+
+_STALE_THREAD_KEYWORDS = [
+    "stale", "threads", "emails need",
+    "what needs attention", "follow up",
+    "inbox status", "comms status",
+    "unanswered", "awaiting reply",
+]
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -64,7 +73,7 @@ class EchoAgent(BaseAgent):
         return '\n'.join(lines)
 
     async def handle(self, request: ChatRequest) -> ChatResponse:
-        client = get_client()
+        msg_lower = request.message.lower()
         context = await self.build_full_context(request.user_id or '', request.message)
 
         # Enrich context with tool-sourced stale thread details (urgency breakdown)
@@ -76,6 +85,31 @@ class EchoAgent(BaseAgent):
                 for t in high_urgency:
                     context += f'\n  [{t["days_stale"]}d] "{t["subject"][:60]}" from {t["from"][:40]}'
 
+        # --- Structured output path for stale-thread / inbox-status queries ---
+        use_structured = request.user_id and any(
+            kw in msg_lower for kw in _STALE_THREAD_KEYWORDS
+        )
+        if use_structured:
+            try:
+                result: CommunicationAnalysis = await run_structured(
+                    CommunicationAnalysis,
+                    self.system_prompt,
+                    request.message,
+                    context=context,
+                )
+                parts = [result.summary]
+                if result.stale_count:
+                    parts.append(f'{result.stale_count} thread(s) need attention.')
+                if result.most_urgent:
+                    parts.append(f'Most urgent: "{result.most_urgent}"')
+                parts.append(f'→ {result.action}')
+                reply = '\n\n'.join(parts)
+                return ChatResponse(reply=reply, agent='Echo', confidence=result.confidence)
+            except Exception:
+                pass  # Fall through to standard LLM path
+
+        # --- Standard LLM path ---
+        client = get_client()
         messages = [{'role': m.role, 'content': m.content} for m in request.history]
         messages.append({'role': 'user', 'content': request.message})
 

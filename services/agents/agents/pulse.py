@@ -6,6 +6,15 @@ from models import ChatRequest, ChatResponse
 from llm import get_client, AGENT_MODEL
 from db import safe_single
 from tools.health_tools import log_workout, log_nutrition, get_recovery_trend, WorkoutLogInput, NutritionLogInput
+from response_models import HealthRecommendation
+from pydantic_agents import run_structured
+
+_HEALTH_STATUS_KEYWORDS = [
+    "what's my recovery", "whats my recovery",
+    "how am i doing", "should i train",
+    "recovery today", "health status",
+    "how is my recovery", "am i recovered",
+]
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -72,7 +81,6 @@ class PulseAgent(BaseAgent):
             # For now, flag it as a tool action in the approval queue
             pass  # Tool calling will be implemented with PydanticAI in next iteration
 
-        client = get_client()
         context = await self.build_full_context(request.user_id or '', request.message)
 
         # Add recovery trend to context if not already there
@@ -81,6 +89,31 @@ class PulseAgent(BaseAgent):
             if trend.get('trend') != 'no_data':
                 context += f'\nRECOVERY TREND (7d): {trend["trend"]} (avg {trend["avg"]}%)'
 
+        # --- Structured output path for health-status queries ---
+        use_structured = request.user_id and any(
+            kw in msg_lower for kw in _HEALTH_STATUS_KEYWORDS
+        )
+        if use_structured:
+            try:
+                result: HealthRecommendation = await run_structured(
+                    HealthRecommendation,
+                    self.system_prompt,
+                    request.message,
+                    context=context,
+                )
+                if result.recovery_score is not None:
+                    reply = (
+                        f'Recovery: {result.recovery_score:.0f}% — {result.summary}\n\n'
+                        f'→ {result.action}'
+                    )
+                else:
+                    reply = f'{result.summary}\n\n→ {result.action}'
+                return ChatResponse(reply=reply, agent='Pulse', confidence=result.confidence)
+            except Exception:
+                pass  # Fall through to standard LLM path
+
+        # --- Standard LLM path ---
+        client = get_client()
         messages = [{'role': m.role, 'content': m.content} for m in request.history]
         messages.append({'role': 'user', 'content': request.message})
 
