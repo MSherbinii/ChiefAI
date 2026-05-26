@@ -74,6 +74,7 @@ export default async function TodayPage() {
     title: i.title as string,
     description: (i.description as string) ?? '',
     risk_level: i.risk_level as 'auto' | 'notify' | 'approve' | 'confirm',
+    context_capsule: (i.context_capsule as Record<string, unknown>) ?? null,
   }));
 
   return (
