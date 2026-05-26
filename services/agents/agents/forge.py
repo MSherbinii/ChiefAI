@@ -68,6 +68,22 @@ class ForgeAgent(BaseAgent):
         else:
             lines.append('No commits in the last 7 days.')
 
+        # Add upcoming calendar events from commitments table
+        upcoming = sb.table('commitments') \
+            .select('what, when_due, priority') \
+            .eq('user_id', user_id) \
+            .eq('status', 'pending') \
+            .gte('when_due', datetime.now(timezone.utc).isoformat()) \
+            .order('when_due', desc=False) \
+            .limit(5) \
+            .execute()
+
+        if upcoming.data:
+            lines.append('UPCOMING EVENTS/DEADLINES:')
+            for c in upcoming.data:
+                due = c.get('when_due', '')[:10] if c.get('when_due') else 'unknown'
+                lines.append(f'  - {c["what"][:60]} (due {due})')
+
         return '\n'.join(lines)
 
     async def handle(self, request: ChatRequest) -> ChatResponse:
