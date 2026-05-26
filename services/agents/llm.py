@@ -21,4 +21,4 @@ def get_client() -> anthropic.AnthropicBedrock | anthropic.Anthropic:
 # Claude models: eu.anthropic.claude-{haiku,sonnet}-{version}-v{n}:0
 ROUTING_MODEL = os.getenv('CHIEF_ROUTING_MODEL', 'eu.anthropic.claude-haiku-4-5-20251001-v1:0')
 AGENT_MODEL = os.getenv('CHIEF_AGENT_MODEL', 'eu.anthropic.claude-haiku-4-5-20251001-v1:0')
-BRIEF_MODEL = os.getenv('CHIEF_BRIEF_MODEL', 'eu.anthropic.claude-sonnet-4-6-20251231-v1:0')
+BRIEF_MODEL = os.getenv('CHIEF_BRIEF_MODEL', 'eu.anthropic.claude-sonnet-4-5-20250929-v1:0')

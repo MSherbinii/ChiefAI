@@ -48,7 +48,7 @@ Schema:
 
 Domain rules:
 - health: anything about recovery, sleep, gym, workout, food, calories, WHOOP, training
-- communication: email, reply, professor, message, thread, follow-up, draft
+- communication: email, reply, professor, thesis supervisor, message, thread, follow-up, draft, write email, compose, send to, inbox, gmail
 - projects: thesis, GitHub, commit, deadline, startup, code, repo, Notion
 - finance: spending, bank, subscription, afford, budget, salary, Revolut, Sparkasse
 - admin: insurance, letter, form, appointment, bureaucracy, TK, document
@@ -80,7 +80,10 @@ Examples:
 - "How much did I spend this week?" -> verb=ask, domain=finance, impact=read, confidence=0.95
 - "I need to push a commit before the deadline" -> verb=ask, domain=projects, impact=read, confidence=0.88
 - "Remind me to call the insurance" -> verb=create, domain=admin, impact=write, confidence=0.90
-- "Good morning" -> verb=ask, domain=general, impact=read, confidence=0.95"""
+- "Good morning" -> verb=ask, domain=general, impact=read, confidence=0.95
+- "Can you draft a reply to my professor about thesis progress?" → verb=draft, domain=communication, impact=write
+- "Write an email to my supervisor" → verb=draft, domain=communication, impact=write
+- "Reply to my professor" → verb=draft, domain=communication, impact=write"""
 
 
 class VoiceIntent(BaseModel):
