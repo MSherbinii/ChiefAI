@@ -1,5 +1,6 @@
 import httpx
 import os
+import re
 from datetime import datetime, timezone
 from supabase import create_client
 
@@ -16,6 +17,31 @@ async def refresh_google_token(refresh_token: str) -> dict:
             'grant_type': 'refresh_token',
         })
         return r.json()
+
+
+def _extract_email_name(from_header: str) -> tuple[str, str]:
+    """Parse 'Name <email@domain.com>' or 'email@domain.com' into (name, email)."""
+    match = re.match(r'^"?([^"<]+?)"?\s*<([^>]+)>', from_header.strip())
+    if match:
+        return match.group(1).strip(), match.group(2).strip()
+    email = from_header.strip()
+    name = email.split('@')[0].replace('.', ' ').title()
+    return name, email
+
+
+def _upsert_person_entity(sb, user_id: str, name: str, email: str, source: str) -> None:
+    """Upsert a Person entity in the entities table."""
+    try:
+        sb.table('entities').upsert({
+            'user_id': user_id,
+            'type': 'person',
+            'name': name,
+            'properties': {'email': email},
+            'source': source,
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        }, on_conflict='user_id,type,name').execute()
+    except Exception:
+        pass  # entity extraction must not crash the sync
 
 
 async def sync_gmail(user_id: str):
@@ -67,6 +93,10 @@ async def sync_gmail(user_id: str):
             headers_map = {h['name']: h['value'] for h in headers_list}
             subject = headers_map.get('Subject', '(no subject)')
             from_addr = headers_map.get('From', '')
+            # Extract and store Person entity
+            person_name, person_email = _extract_email_name(from_addr)
+            if person_email and '@' in person_email:
+                _upsert_person_entity(sb, user_id, person_name, person_email, 'gmail')
             date_str = headers_map.get('Date', '')
 
             try:
