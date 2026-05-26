@@ -1,12 +1,12 @@
 import asyncio
 import os
 from models import ChatRequest, ChatResponse
-from agents import PulseAgent, EchoAgent, ForgeAgent
+from agents import PulseAgent, EchoAgent, ForgeAgent, LedgerAgent, ClerkAgent
 from llm import get_client, ROUTING_MODEL, AGENT_MODEL
 from guardrails import check_input_guardrails, check_output_guardrails, evaluate_response_quality
 from memory import save_interaction, get_recent_context, MemoryEntry, save_quality_feedback
 
-AGENTS = [PulseAgent(), EchoAgent(), ForgeAgent()]
+AGENTS = [PulseAgent(), EchoAgent(), ForgeAgent(), LedgerAgent(), ClerkAgent()]
 
 ROUTING_SYSTEM = """You are Chief's routing intelligence. Given a user message, decide which specialist to use.
 
@@ -14,9 +14,11 @@ Specialists:
 - Pulse: health, fitness, sleep, recovery, gym, nutrition, food, weight, injury
 - Echo: emails, communication, professor, reply, draft, message, thread, follow-up
 - Forge: thesis, GitHub, code, project, task, startup, deadline, commit, work
+- Ledger: spending, bank, balance, subscription, afford, budget, money, transaction, financial, cost, price, invoice, receipt
+- Clerk: insurance, letter, bureaucracy, form, appointment, TK, AOK, Beitragsnummer, visa, residence, document, contract, German admin, government
 - Chief: anything else, general questions, cross-domain, strategy, planning
 
-Respond with ONLY the specialist name (Pulse, Echo, Forge, or Chief). Nothing else."""
+Respond with ONLY the specialist name (Pulse, Echo, Forge, Ledger, Clerk, or Chief). Nothing else."""
 
 
 async def route_and_handle(request: ChatRequest) -> ChatResponse:
