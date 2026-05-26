@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timezone
 from supabase import create_client
 from authority.engine import AuthorityResult
+from db import safe_single
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -65,12 +66,12 @@ async def record_approval_outcome(
         sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
         action_category = tool_name.split('_')[0] if '_' in tool_name else tool_name
 
-        existing = sb.table('approval_patterns') \
+        existing = safe_single(sb.table('approval_patterns') \
             .select('*') \
             .eq('user_id', user_id) \
             .eq('agent', agent) \
             .eq('tool_name', tool_name) \
-            .maybe_single().execute()
+            .maybe_single())
 
         if existing.data:
             row = existing.data

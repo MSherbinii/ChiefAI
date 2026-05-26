@@ -1,7 +1,9 @@
 """
 LLM client factory.
 Uses Amazon Bedrock if AWS credentials are available, falls back to Anthropic API.
-Region: eu-central-1 — uses EU cross-region inference prefixes (eu.amazon.nova-*, eu.anthropic.claude-*)
+Region: eu-central-1 — uses EU cross-region inference prefixes
+# Claude models: eu.anthropic.claude-{haiku,sonnet}-{version}-v{n}:0
+# Note: Amazon Nova models require boto3 directly (not compatible with AnthropicBedrock SDK wrapper)
 """
 import os
 import anthropic
@@ -16,8 +18,7 @@ def get_client() -> anthropic.AnthropicBedrock | anthropic.Anthropic:
 
 
 # Model IDs — EU Bedrock cross-region inference
-# Nova models: eu.amazon.nova-{micro,lite,pro}-v1:0
-# Claude fallback: eu.anthropic.claude-haiku-4-5-20251001-v1:0
-ROUTING_MODEL = os.getenv('CHIEF_ROUTING_MODEL', 'eu.amazon.nova-micro-v1:0')
-AGENT_MODEL = os.getenv('CHIEF_AGENT_MODEL', 'eu.amazon.nova-lite-v1:0')
-BRIEF_MODEL = os.getenv('CHIEF_BRIEF_MODEL', 'eu.amazon.nova-pro-v1:0')
+# Claude models: eu.anthropic.claude-{haiku,sonnet}-{version}-v{n}:0
+ROUTING_MODEL = os.getenv('CHIEF_ROUTING_MODEL', 'eu.anthropic.claude-haiku-4-5-20251001-v1:0')
+AGENT_MODEL = os.getenv('CHIEF_AGENT_MODEL', 'eu.anthropic.claude-haiku-4-5-20251001-v1:0')
+BRIEF_MODEL = os.getenv('CHIEF_BRIEF_MODEL', 'eu.anthropic.claude-sonnet-4-6-20251231-v1:0')

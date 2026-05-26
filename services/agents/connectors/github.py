@@ -2,6 +2,7 @@ import httpx
 import os
 from datetime import datetime, timezone
 from supabase import create_client
+from db import safe_single
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -10,7 +11,7 @@ SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 async def sync_github(user_id: str):
     sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-    res = sb.table('connector_tokens').select('*').eq('user_id', user_id).eq('connector', 'github').maybe_single().execute()
+    res = safe_single(sb.table('connector_tokens').select('*').eq('user_id', user_id).eq('connector', 'github').maybe_single())
     if not res.data:
         return
 

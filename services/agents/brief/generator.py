@@ -8,6 +8,7 @@ import os
 from datetime import datetime, timezone, timedelta
 from supabase import create_client
 from llm import get_client, BRIEF_MODEL
+from db import safe_single
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -54,9 +55,9 @@ async def gather_brief_context(sb, user_id: str) -> str:
     parts = []
 
     # Health
-    rec = sb.table('lg_health').select('value, recorded_at').eq('user_id', user_id) \
+    rec = safe_single(sb.table('lg_health').select('value, recorded_at').eq('user_id', user_id) \
         .eq('metric', 'recovery').gte('recorded_at', cutoff) \
-        .order('recorded_at', desc=True).limit(1).maybe_single().execute()
+        .order('recorded_at', desc=True).limit(1).maybe_single())
 
     sleep7 = sb.table('lg_health').select('value').eq('user_id', user_id) \
         .eq('metric', 'sleep').gte('recorded_at', cutoff).execute()

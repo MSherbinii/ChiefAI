@@ -4,6 +4,7 @@ from supabase import create_client
 from agents.base import BaseAgent
 from models import ChatRequest, ChatResponse
 from llm import get_client, AGENT_MODEL
+from db import safe_single
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -19,10 +20,10 @@ class PulseAgent(BaseAgent):
         sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
         cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
 
-        rec = sb.table('lg_health').select('value, recorded_at') \
+        rec = safe_single(sb.table('lg_health').select('value, recorded_at') \
             .eq('user_id', user_id).eq('metric', 'recovery') \
             .gte('recorded_at', cutoff) \
-            .order('recorded_at', desc=True).limit(1).maybe_single().execute()
+            .order('recorded_at', desc=True).limit(1).maybe_single())
 
         sleeps = sb.table('lg_health').select('value, recorded_at') \
             .eq('user_id', user_id).eq('metric', 'sleep') \

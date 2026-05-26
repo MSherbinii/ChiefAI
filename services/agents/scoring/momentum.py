@@ -11,6 +11,7 @@ Discipline: cross-domain consistency meta-score
 import os
 from datetime import datetime, timezone, timedelta
 from supabase import create_client
+from db import safe_single
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -23,9 +24,9 @@ def _clamp(val: float, lo: float = 0, hi: float = 100) -> int:
 async def calculate_body_score(sb, user_id: str) -> tuple[int, str]:
     cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
 
-    rec = sb.table('lg_health').select('value').eq('user_id', user_id) \
+    rec = safe_single(sb.table('lg_health').select('value').eq('user_id', user_id) \
         .eq('metric', 'recovery').gte('recorded_at', cutoff) \
-        .order('recorded_at', desc=True).limit(1).maybe_single().execute()
+        .order('recorded_at', desc=True).limit(1).maybe_single())
 
     sleeps = sb.table('lg_health').select('value').eq('user_id', user_id) \
         .eq('metric', 'sleep').gte('recorded_at', cutoff).execute()

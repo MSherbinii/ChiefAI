@@ -5,6 +5,7 @@ from email.header import decode_header
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone
 from supabase import create_client
+from db import safe_single
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -36,7 +37,7 @@ def verify_imap(email_addr: str, password: str, imap_host: str, imap_port: int =
 async def sync_imap(user_id: str):
     sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-    res = sb.table('connector_tokens').select('*').eq('user_id', user_id).eq('connector', 'imap_uni').maybe_single().execute()
+    res = safe_single(sb.table('connector_tokens').select('*').eq('user_id', user_id).eq('connector', 'imap_uni').maybe_single())
     if not res.data:
         return
 
