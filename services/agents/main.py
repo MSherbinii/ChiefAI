@@ -4,6 +4,10 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from models import ChatRequest, ChatResponse
 from orchestrator import route_and_handle
+from connectors.gmail import sync_gmail
+from connectors.github import sync_github
+from connectors.whoop import sync_whoop
+from connectors.imap_email import sync_imap
 import asyncio
 
 load_dotenv()
@@ -42,26 +46,26 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 @app.post('/sync/google')
 async def sync_google(req: SyncRequest):
-    asyncio.create_task(asyncio.sleep(0))  # placeholder until gmail.py added in Task 14
-    return {'status': 'sync_queued', 'connector': 'gmail'}
+    asyncio.create_task(sync_gmail(req.user_id))
+    return {'status': 'sync_started', 'connector': 'gmail'}
 
 
 @app.post('/sync/github')
 async def sync_github_route(req: SyncRequest):
-    asyncio.create_task(asyncio.sleep(0))
-    return {'status': 'sync_queued', 'connector': 'github'}
+    asyncio.create_task(sync_github(req.user_id))
+    return {'status': 'sync_started', 'connector': 'github'}
 
 
 @app.post('/sync/whoop')
 async def sync_whoop_route(req: SyncRequest):
-    asyncio.create_task(asyncio.sleep(0))
-    return {'status': 'sync_queued', 'connector': 'whoop'}
+    asyncio.create_task(sync_whoop(req.user_id))
+    return {'status': 'sync_started', 'connector': 'whoop'}
 
 
 @app.post('/sync/imap_uni')
 async def sync_imap_route(req: SyncRequest):
-    asyncio.create_task(asyncio.sleep(0))
-    return {'status': 'sync_queued', 'connector': 'imap_uni'}
+    asyncio.create_task(sync_imap(req.user_id))
+    return {'status': 'sync_started', 'connector': 'imap_uni'}
 
 
 @app.post('/connectors/imap/verify')
