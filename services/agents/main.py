@@ -16,12 +16,14 @@ from connectors.gmail import sync_gmail
 from connectors.github import sync_github
 from connectors.whoop import sync_whoop
 from connectors.imap_email import sync_imap
+from connectors.google_calendar import sync_google_calendar
 from feedback import record_approval_feedback, get_agent_performance, ApprovalOutcome
 from embeddings import update_entity_embeddings, update_communication_embeddings
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from proactive import run_proactive_scan_all_users, run_proactive_scan
 from knowledge_extractor import run_background_extraction
 from hierarchy import get_pending_tasks, delegate_task, AGENT_HIERARCHY
+from document_extractor import extract_document_fields, DocumentExtractRequest, ExtractedDocument
 from supabase import create_client
 import asyncio
 
@@ -143,6 +145,12 @@ async def sync_imap_route(req: SyncRequest):
     return {'status': 'sync_started', 'connector': 'imap_uni'}
 
 
+@app.post('/sync/google_calendar')
+async def sync_calendar(req: SyncRequest):
+    asyncio.create_task(sync_google_calendar(req.user_id))
+    return {'status': 'sync_started', 'connector': 'google_calendar'}
+
+
 @app.post('/score/momentum')
 async def score_momentum(req: SyncRequest):
     result = await calculate_momentum(req.user_id)
@@ -232,6 +240,11 @@ class DelegateRequest(BaseModel):
     priority: str = 'normal'
 
 
+@app.post('/documents/extract', response_model=ExtractedDocument)
+async def extract_document(req: DocumentExtractRequest) -> ExtractedDocument:
+    return await extract_document_fields(req)
+
+
 @app.post('/hierarchy/delegate')
 async def delegate(req: DelegateRequest):
     return await delegate_task(
@@ -242,3 +255,15 @@ async def delegate(req: DelegateRequest):
         why=req.why,
         priority=req.priority,
     )
+
+
+# ---------------------------------------------------------------------------
+# Eval endpoint — run agent evaluation suite
+# ---------------------------------------------------------------------------
+
+@app.post('/eval/run')
+async def run_eval():
+    """Run all agent evaluations. Returns quality report."""
+    from eval.runner import run_all_evaluations
+    results = await run_all_evaluations()
+    return results

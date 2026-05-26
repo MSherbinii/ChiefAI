@@ -4,6 +4,7 @@ import { getConnectorStates } from '@/lib/connectors';
 import { TopBar } from '@/components/layout/TopBar';
 import { SettingsConnectors } from '@/components/settings/SettingsConnectors';
 import { AgentStatusPanel } from '@/components/settings/AgentStatusPanel';
+import { DocumentUpload } from '@/components/settings/DocumentUpload';
 
 export default async function SettingsPage({
   searchParams,
@@ -58,6 +59,13 @@ export default async function SettingsPage({
         </section>
 
         <SettingsConnectors states={connectorStates} />
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-[var(--v2-text)]">Documents</h2>
+          <div className="rounded-[14px] border border-[rgba(247,240,255,0.10)] [background:linear-gradient(180deg,rgba(18,24,34,0.98),rgba(11,15,22,0.98))] p-4">
+            <DocumentUpload />
+          </div>
+        </section>
 
         <AgentStatusPanel />
       </main>
