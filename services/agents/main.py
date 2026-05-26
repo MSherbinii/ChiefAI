@@ -21,6 +21,7 @@ from embeddings import update_entity_embeddings, update_communication_embeddings
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from proactive import run_proactive_scan_all_users, run_proactive_scan
 from knowledge_extractor import run_background_extraction
+from hierarchy import get_pending_tasks, delegate_task, AGENT_HIERARCHY
 from supabase import create_client
 import asyncio
 
@@ -206,3 +207,38 @@ async def verify_imap_route(req: IMAPVerifyRequest):
         return {'ok': True}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f'IMAP connection failed: {str(e)}')
+
+
+# ---------------------------------------------------------------------------
+# Hierarchy endpoints — agent tree, pending tasks, delegation
+# ---------------------------------------------------------------------------
+
+@app.get('/hierarchy')
+async def get_hierarchy():
+    return {name: node.dict() for name, node in AGENT_HIERARCHY.items()}
+
+
+@app.get('/hierarchy/tasks/{user_id}/{agent}')
+async def agent_tasks(user_id: str, agent: str):
+    return {'tasks': await get_pending_tasks(user_id, agent)}
+
+
+class DelegateRequest(BaseModel):
+    user_id: str
+    from_agent: str = 'Chief'
+    to_agent: str
+    task: str
+    why: Optional[str] = None
+    priority: str = 'normal'
+
+
+@app.post('/hierarchy/delegate')
+async def delegate(req: DelegateRequest):
+    return await delegate_task(
+        user_id=req.user_id,
+        from_agent=req.from_agent,
+        to_agent=req.to_agent,
+        task=req.task,
+        why=req.why,
+        priority=req.priority,
+    )
