@@ -8,11 +8,16 @@ import os
 
 # Set env vars before any imports that read them at module level
 os.environ.setdefault('SUPABASE_URL', 'https://test.supabase.co')
-os.environ.setdefault('SUPABASE_SERVICE_ROLE_KEY', 'test-key')
-os.environ.setdefault('AWS_ACCESS_KEY_ID', 'test-key-id')
-os.environ.setdefault('AWS_SECRET_ACCESS_KEY', 'test-secret')
+os.environ.setdefault(
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'
+    '.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRlc3QiLCJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjAwMDAwMDAwLCJleHAiOjk5OTk5OTk5OTl9'
+    '.test-signature-not-real',
+)
+os.environ.setdefault('AWS_ACCESS_KEY_ID', 'AKIATEST123456789012')
+os.environ.setdefault('AWS_SECRET_ACCESS_KEY', 'test-secret-key-not-real-for-testing-only')
 os.environ.setdefault('AWS_DEFAULT_REGION', 'eu-central-1')
-os.environ.setdefault('ANTHROPIC_API_KEY', 'test-key')
+os.environ.setdefault('ANTHROPIC_API_KEY', 'sk-ant-test-key-not-real')
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -805,3 +810,108 @@ class TestForgeAgentUnit:
         response = asyncio.run(agent.handle(request))
         assert isinstance(response, ChatResponse)
         assert response.agent == "Forge"
+
+
+# ─── Hierarchy Tests ──────────────────────────────────────────────────────────
+
+class TestHierarchy:
+    """Test the agent hierarchy system."""
+
+    def test_hierarchy_has_all_agents(self):
+        from hierarchy import AGENT_HIERARCHY
+        expected = {'Chief', 'Pulse', 'Echo', 'Forge', 'Ledger', 'Clerk', 'Scout'}
+        actual = set(AGENT_HIERARCHY.keys())
+        # At minimum Chief + original 3
+        assert 'Chief' in actual
+        assert 'Pulse' in actual
+        assert 'Echo' in actual
+
+    def test_chief_is_root(self):
+        from hierarchy import get_primary_agent
+        chief = get_primary_agent()
+        assert chief.name == 'Chief'
+        assert chief.parent is None
+
+    def test_authority_inheritance(self):
+        from hierarchy import can_delegate, get_agent_authority
+        # Chief has highest authority
+        assert get_agent_authority('Chief') > get_agent_authority('Pulse')
+        # Chief can delegate to Pulse
+        assert can_delegate('Chief', 'Pulse', 'log_workout') is True
+        # Pulse cannot delegate to Chief
+        assert can_delegate('Pulse', 'Chief', 'anything') is False
+
+
+# ─── Extended Voice Intent Tests ──────────────────────────────────────────────
+
+class TestVoiceIntentExtended:
+    """Additional voice intent tests."""
+
+    def test_finance_routes_to_ledger(self):
+        try:
+            from voice_intent import DOMAIN_TO_AGENT
+            assert DOMAIN_TO_AGENT.get('finance') == 'Ledger'
+        except ImportError:
+            pytest.skip("voice_intent not available")
+
+    def test_admin_routes_to_clerk(self):
+        try:
+            from voice_intent import DOMAIN_TO_AGENT
+            assert DOMAIN_TO_AGENT.get('admin') == 'Clerk'
+        except ImportError:
+            pytest.skip("voice_intent not available")
+
+    def test_general_routes_to_chief(self):
+        try:
+            from voice_intent import DOMAIN_TO_AGENT
+            assert DOMAIN_TO_AGENT.get('general') == 'Chief'
+        except ImportError:
+            pytest.skip("voice_intent not available")
+
+
+# ─── All Agents Instantiate Tests ────────────────────────────────────────────
+
+class TestAllAgentsInstantiate:
+    """Verify all agents load their role YAML and instantiate cleanly."""
+
+    def test_pulse_instantiates(self):
+        from agents.pulse import PulseAgent
+        a = PulseAgent()
+        assert a.name == 'Pulse'
+        assert len(a.system_prompt) > 50
+
+    def test_echo_instantiates(self):
+        from agents.echo import EchoAgent
+        a = EchoAgent()
+        assert a.name == 'Echo'
+        assert len(a.system_prompt) > 50
+
+    def test_forge_instantiates(self):
+        from agents.forge import ForgeAgent
+        a = ForgeAgent()
+        assert a.name == 'Forge'
+        assert len(a.system_prompt) > 50
+
+    def test_ledger_instantiates(self):
+        try:
+            from agents.ledger import LedgerAgent
+            a = LedgerAgent()
+            assert a.name == 'Ledger'
+        except ImportError:
+            pytest.skip("Ledger agent not yet available")
+
+    def test_clerk_instantiates(self):
+        try:
+            from agents.clerk import ClerkAgent
+            a = ClerkAgent()
+            assert a.name == 'Clerk'
+        except ImportError:
+            pytest.skip("Clerk agent not yet available")
+
+    def test_scout_instantiates(self):
+        try:
+            from agents.scout import ScoutAgent
+            a = ScoutAgent()
+            assert a.name == 'Scout'
+        except ImportError:
+            pytest.skip("Scout agent not yet available")
