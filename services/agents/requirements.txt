@@ -8,3 +8,5 @@ supabase==2.10.0
 google-auth==2.35.0
 google-api-python-client==2.154.0
 PyGithub==2.5.0
+pyyaml==6.0.2
+apscheduler==3.10.4
