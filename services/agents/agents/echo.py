@@ -1,9 +1,9 @@
-import anthropic
 import os
 from datetime import datetime, timezone, timedelta
 from supabase import create_client
 from agents.base import BaseAgent
 from models import ChatRequest, ChatResponse
+from llm import get_client, AGENT_MODEL
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -50,13 +50,13 @@ class EchoAgent(BaseAgent):
         return '\n'.join(lines)
 
     async def handle(self, request: ChatRequest) -> ChatResponse:
-        client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+        client = get_client()
         context = await self.fetch_context(request.user_id or '')
         messages = [{'role': m.role, 'content': m.content} for m in request.history]
         messages.append({'role': 'user', 'content': request.message})
 
         response = client.messages.create(
-            model='claude-sonnet-4-6',
+            model=AGENT_MODEL,
             max_tokens=1024,
             system=f'{self.system_prompt}\n\n{context}',
             messages=messages,

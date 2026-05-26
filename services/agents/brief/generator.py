@@ -3,11 +3,11 @@ Generates a structured Morning Brief from all Life Graph data.
 Uses Claude to synthesize health + comms + projects + admin into
 a structured JSON brief, then stores it in the briefs table.
 """
-import anthropic
 import json
 import os
 from datetime import datetime, timezone, timedelta
 from supabase import create_client
+from llm import get_client, BRIEF_MODEL
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -116,9 +116,9 @@ async def generate_morning_brief(user_id: str, user_name: str = 'there') -> dict
     context = await gather_brief_context(sb, user_id)
     today = datetime.now(timezone.utc).date().isoformat()
 
-    client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+    client = get_client()
     response = client.messages.create(
-        model='claude-sonnet-4-6',
+        model=BRIEF_MODEL,
         max_tokens=1500,
         system=BRIEF_PROMPT,
         messages=[{
@@ -153,8 +153,8 @@ async def generate_morning_brief(user_id: str, user_name: str = 'there') -> dict
         'life_debt': brief_data.get('life_debt', {'total': 0, 'items': []}),
         'best_move': brief_data.get('best_move', ''),
         'patterns': brief_data.get('patterns', []),
-        'generated_by': 'claude',
-        'model': 'claude-sonnet-4-6',
+        'generated_by': 'bedrock',
+        'model': 'amazon.nova-pro-v1:0',
         'created_at': datetime.now(timezone.utc).isoformat(),
     }, on_conflict='user_id,brief_date,type').execute()
 

@@ -11,7 +11,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 # Set dummy env vars before any imports that read them at module level
 os.environ.setdefault('SUPABASE_URL', 'http://localhost')
 os.environ.setdefault('SUPABASE_SERVICE_ROLE_KEY', 'test-key')
-os.environ.setdefault('ANTHROPIC_API_KEY', 'test-anthropic-key')
+# Use AWS creds so llm.get_client() returns AnthropicBedrock in tests
+os.environ.setdefault('AWS_ACCESS_KEY_ID', 'test-aws-key-id')
+os.environ.setdefault('AWS_SECRET_ACCESS_KEY', 'test-aws-secret')
 
 import pytest
 from fastapi.testclient import TestClient
@@ -24,7 +26,7 @@ def client():
     mock_anthropic_cls = MagicMock()
 
     with patch('supabase.create_client', return_value=mock_sb), \
-         patch('anthropic.Anthropic', return_value=mock_anthropic_cls):
+         patch('anthropic.AnthropicBedrock', return_value=mock_anthropic_cls):
         from main import app
         return TestClient(app)
 

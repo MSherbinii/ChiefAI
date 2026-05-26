@@ -1,7 +1,7 @@
-import anthropic
 import os
 from models import ChatRequest, ChatResponse
 from agents import PulseAgent, EchoAgent, ForgeAgent
+from llm import get_client, ROUTING_MODEL, AGENT_MODEL
 
 AGENTS = [PulseAgent(), EchoAgent(), ForgeAgent()]
 
@@ -17,10 +17,10 @@ Respond with ONLY the specialist name (Pulse, Echo, Forge, or Chief). Nothing el
 
 
 async def route_and_handle(request: ChatRequest) -> ChatResponse:
-    client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+    client = get_client()
 
     routing_response = client.messages.create(
-        model='claude-haiku-4-5-20251001',
+        model=ROUTING_MODEL,
         max_tokens=10,
         system=ROUTING_SYSTEM,
         messages=[{'role': 'user', 'content': request.message}],
@@ -32,7 +32,7 @@ async def route_and_handle(request: ChatRequest) -> ChatResponse:
         return await agent.handle(request)
 
     chief_response = client.messages.create(
-        model='claude-sonnet-4-6',
+        model=AGENT_MODEL,
         max_tokens=1024,
         system=(
             "You are Chief, a personal life operating system. "
