@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from models import ChatRequest, ChatResponse
 from orchestrator import route_and_handle
+from scoring.momentum import calculate_momentum
 from connectors.gmail import sync_gmail
 from connectors.github import sync_github
 from connectors.whoop import sync_whoop
@@ -66,6 +67,12 @@ async def sync_whoop_route(req: SyncRequest):
 async def sync_imap_route(req: SyncRequest):
     asyncio.create_task(sync_imap(req.user_id))
     return {'status': 'sync_started', 'connector': 'imap_uni'}
+
+
+@app.post('/score/momentum')
+async def score_momentum(req: SyncRequest):
+    result = await calculate_momentum(req.user_id)
+    return result
 
 
 @app.post('/connectors/imap/verify')
