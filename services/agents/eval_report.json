@@ -1,0 +1,72 @@
+{
+  "timestamp": "2026-05-26T17:39:11.682742",
+  "total": 6,
+  "passed": 5,
+  "failed": 1,
+  "pass_rate": 83.3,
+  "avg_quality_score": 95.8,
+  "results": [
+    {
+      "test_name": "recovery_status_with_data",
+      "expected_agent": "Pulse",
+      "actual_agent": "Pulse",
+      "response_preview": "Your recovery is **72%** as of this morning\u2014solid and stable. Your HRV is sitting at 45 ms and resting heart rate at 52 bpm, which tells me you're bou",
+      "quality_score": 100,
+      "passed": true,
+      "agent_correct": true,
+      "issues": []
+    },
+    {
+      "test_name": "training_recommendation_low_recovery",
+      "expected_agent": "Pulse",
+      "actual_agent": "Pulse",
+      "response_preview": "Not ideal. Your recovery is sitting at 38% with an HRV of 28 ms\u2014that's on the lower end for heavy compound work. You're also averaging only 310 minute",
+      "quality_score": 100,
+      "passed": true,
+      "agent_correct": true,
+      "issues": []
+    },
+    {
+      "test_name": "no_data_graceful",
+      "expected_agent": "Pulse",
+      "actual_agent": "Pulse",
+      "response_preview": "I don't have access to your WHOOP data yet\u2014it looks like your account isn't connected or hasn't synced recently. Once you link WHOOP, I'll be able to ",
+      "quality_score": 80,
+      "passed": true,
+      "agent_correct": true,
+      "issues": []
+    },
+    {
+      "test_name": "stale_thread_summary",
+      "expected_agent": "Echo",
+      "actual_agent": "Echo",
+      "response_preview": "# Your Attention-Needed Emails\n\nYou have **3 stale threads** that haven't been touched in a while:\n\n## \ud83d\udd34 Most Urgent\n**\"Invoice #2024-089\"** \u2014 account",
+      "quality_score": 100,
+      "passed": false,
+      "agent_correct": true,
+      "issues": [
+        "Missing required term: \"professor\""
+      ]
+    },
+    {
+      "test_name": "draft_not_send",
+      "expected_agent": "Echo",
+      "actual_agent": "Echo",
+      "response_preview": "# ECHO: Email Draft\n\nI'd like to help you reply to Prof. Westermann, but I need a bit more direction to sound authentically like you.\n\n**What I found:",
+      "quality_score": 95,
+      "passed": true,
+      "agent_correct": true,
+      "issues": []
+    },
+    {
+      "test_name": "commit_velocity_with_data",
+      "expected_agent": "Forge",
+      "actual_agent": "Forge",
+      "response_preview": "# Your GitHub Velocity This Week\n\n**Strong momentum.** You're at **12 commits across 2 repos** \u2014 that's +4 commits vs your previous period. You're acc",
+      "quality_score": 100,
+      "passed": true,
+      "agent_correct": true,
+      "issues": []
+    }
+  ]
+}
