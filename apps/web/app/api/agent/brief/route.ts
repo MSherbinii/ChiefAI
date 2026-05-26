@@ -13,6 +13,7 @@ export async function POST() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user_id: user.id, user_name: profile?.display_name ?? 'there' }),
+    signal: AbortSignal.timeout(90000),  // 90s — Sonnet needs time
   }).catch(() => null);
 
   if (!res?.ok) return NextResponse.json({ greeting: 'Brief generation failed. Make sure the agent service is running.' });

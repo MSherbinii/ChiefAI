@@ -61,14 +61,19 @@ class EchoAgent(BaseAgent):
                 subj = (t.get('subject') or '(no subject)')[:60]
                 sender = (t.get('participants') or ['?'])[0][:40]
                 lines.append(f'  [{t["staleness_days"]}d] "{subj}" from {sender} via {t["channel"]}')
-        else:
-            lines.append('No stale threads. Inbox is clear.')
 
         if recent.data:
-            lines.append(f'RECENT ACTIVITY (last 2 days):')
+            lines.append(f'RECENT EMAILS (last 2 days — {len(recent.data)} threads):')
             for t in recent.data:
                 subj = (t.get('subject') or '(no subject)')[:60]
                 lines.append(f'  "{subj}" — {t["channel"]} — {t["last_message_at"][:10]}')
+
+        if not stale.data and not recent.data:
+            lines.append('No emails synced yet. Gmail not connected or sync pending.')
+        elif not stale.data:
+            lines.append('No stale threads — inbox is current.')
+
+        lines.append('\nIMPORTANT: The above IS the user\'s real email data from their Gmail account. Use it to answer.')
 
         return '\n'.join(lines)
 
@@ -111,12 +116,22 @@ class EchoAgent(BaseAgent):
         # --- Standard LLM path ---
         client = get_client()
         messages = [{'role': m.role, 'content': m.content} for m in request.history]
+
+        # Inject context as an assistant message so the model treats it as known data
+        # This works better than system prompt for Haiku which over-refuses email access claims
+        if context and 'RECENT EMAILS' in context or 'STALE THREADS' in context:
+            messages.append({
+                'role': 'assistant',
+                'content': f'[Checking Gmail...]\n\n{context}\n\n[Data loaded. Responding based on real email data above.]'
+            })
+
         messages.append({'role': 'user', 'content': request.message})
 
+        from llm import BRIEF_MODEL  # Use Sonnet for Echo — Haiku over-refuses email access
         response = client.messages.create(
-            model=AGENT_MODEL,
+            model=BRIEF_MODEL,
             max_tokens=1024,
-            system=f'{self.system_prompt}\n\n{context}',
+            system=self.system_prompt,
             messages=messages,
         )
         return ChatResponse(reply=response.content[0].text, agent='Echo')
