@@ -1,0 +1,118 @@
+[data-theme='chief'] {
+  /* Surfaces */
+  --v2-base:        #050608;
+  --v2-bg-soft:     #080A0E;
+  --v2-sidebar:     #080B10;
+  --v2-panel:       #0C1017;
+  --v2-card:        #10151E;
+  --v2-card-hover:  #141B26;
+  --v2-elevated:    #171E2B;
+  --v2-glass:       rgba(12, 16, 23, 0.82);
+  --v2-glass-hi:    rgba(20, 27, 38, 0.88);
+
+  /* Borders */
+  --v2-border:         rgba(247, 240, 255, 0.10);
+  --v2-border-strong:  rgba(247, 240, 255, 0.16);
+  --v2-border-brand:   rgba(138, 58, 255, 0.38);
+  --v2-border-mid:     rgba(138, 58, 255, 0.20);
+  --v2-border-focus:   rgba(138, 58, 255, 0.65);
+
+  /* Text */
+  --v2-text:       #F7F0FF;
+  --v2-text-dim:   rgba(247, 240, 255, 0.74);
+  --v2-muted:      rgba(247, 240, 255, 0.52);
+  --v2-subtle:     rgba(247, 240, 255, 0.36);
+
+  /* Brand */
+  --v2-violet:      #8A3AFF;
+  --v2-violet-soft: #6F58FF;
+  --v2-accent:      #8A3AFF;
+  --v2-teal:        #18E6D8;
+  --v2-ok:          #38F2A8;
+  --v2-warn:        #F7A93B;
+  --v2-crit:        #FF4F6D;
+  --v2-danger:      #FF4F6D;
+  --v2-info:        #3B82F6;
+
+  /* Shadows */
+  --v2-shadow-card:  0 18px 55px rgba(0, 0, 0, 0.38);
+  --v2-shadow-soft:  0 10px 30px rgba(0, 0, 0, 0.28);
+  --v2-shadow-brand: 0 0 28px rgba(89, 74, 255, 0.12);
+  --v2-shadow-card-inset:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 18px 55px rgba(0, 0, 0, 0.38);
+  --v2-glow-violet:  0 0 24px rgba(89, 74, 255, 0.28);
+  --v2-glow-teal:    0 0 24px rgba(24, 230, 216, 0.18);
+  --v2-glow-ok:      0 0 8px rgba(56, 242, 168, 0.36);
+  --v2-glow-warn:    0 0 8px rgba(247, 169, 59, 0.36);
+  --v2-glow-crit:    0 0 8px rgba(255, 79, 109, 0.36);
+
+  /* App background */
+  --v2-app-bg:
+    radial-gradient(circle at 18% 0%, rgba(38,99,235,0.05), transparent 30%),
+    radial-gradient(circle at 76% 0%, rgba(138,58,255,0.045), transparent 32%),
+    radial-gradient(circle at 95% 60%, rgba(24,230,216,0.02), transparent 26%),
+    linear-gradient(180deg, #08090D 0%, #060608 52%, #060608 100%);
+
+  /* Gradients */
+  --v2-gradient-accent:  linear-gradient(135deg, #8A3AFF 0%, #2563EB 100%);
+  --v2-gradient-card:    linear-gradient(180deg, rgba(18,24,34,0.98), rgba(11,15,22,0.98));
+
+  /* Radius */
+  --v2-radius-sm: 8px;
+  --v2-radius-md: 12px;
+  --v2-radius-lg: 16px;
+  --v2-radius-xl: 20px;
+
+  /* shadcn compat */
+  --background: 222 30% 4%;
+  --foreground: 270 100% 98%;
+  --card: 222 28% 8%;
+  --card-foreground: 270 100% 98%;
+  --popover: 222 28% 8%;
+  --popover-foreground: 270 100% 98%;
+  --primary: 270 100% 61%;
+  --primary-foreground: 222 30% 4%;
+  --secondary: 222 25% 11%;
+  --secondary-foreground: 270 100% 98%;
+  --muted: 222 22% 11%;
+  --muted-foreground: 270 30% 62%;
+  --accent: 270 100% 61%;
+  --accent-foreground: 222 30% 4%;
+  --destructive: 349 100% 65%;
+  --destructive-foreground: 270 100% 98%;
+  --border: 222 18% 16%;
+  --input: 222 18% 16%;
+  --ring: 270 100% 61%;
+  --radius: 0.75rem;
+
+  background: var(--v2-app-bg);
+  min-height: 100vh;
+  color: var(--v2-text);
+  font-family: 'Bai Jamjuree', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+[data-theme='chief'] [class*='font-mono'],
+[data-theme='chief'] code,
+[data-theme='chief'] pre {
+  font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+}
+
+.chief-specular::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255,255,255,0.028) 0%, transparent 40%);
+  pointer-events: none;
+}
+
+@keyframes chief-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+.chief-pulse { animation: chief-pulse 1.6s ease-in-out infinite; }
