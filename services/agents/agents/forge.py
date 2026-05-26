@@ -4,6 +4,7 @@ from supabase import create_client
 from agents.base import BaseAgent
 from models import ChatRequest, ChatResponse
 from llm import get_client, AGENT_MODEL
+from tools.project_tools import get_commit_velocity, get_active_projects, flag_stagnant_repos
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -63,6 +64,27 @@ class ForgeAgent(BaseAgent):
     async def handle(self, request: ChatRequest) -> ChatResponse:
         client = get_client()
         context = await self.fetch_context(request.user_id or '')
+
+        # Enrich context with tool-sourced velocity trend and stagnant repo flags
+        if request.user_id:
+            velocity = await get_commit_velocity(request.user_id)
+            if velocity.get('trend') not in ('error', None):
+                context += (
+                    f'\nCOMMIT VELOCITY TREND: {velocity["trend"]} '
+                    f'(this week: {velocity["this_week"]}, last week: {velocity["last_week"]}, '
+                    f'delta: {velocity["delta"]:+d})'
+                )
+                if velocity.get('top_repo'):
+                    context += f'\n  Most active repo: {velocity["top_repo"]}'
+
+            stagnant = await flag_stagnant_repos(request.user_id, days_threshold=7)
+            real_stagnant = [s for s in stagnant if 'error' not in s]
+            if real_stagnant:
+                context += f'\nSTAGNANT REPOS ({len(real_stagnant)} with no commits this week):'
+                for s in real_stagnant:
+                    risk_flag = ' [AT RISK]' if s.get('at_risk') else ''
+                    context += f'\n  - {s["repo"]}{risk_flag}'
+
         messages = [{'role': m.role, 'content': m.content} for m in request.history]
         messages.append({'role': 'user', 'content': request.message})
 

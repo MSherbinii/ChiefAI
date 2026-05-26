@@ -4,6 +4,7 @@ from supabase import create_client
 from agents.base import BaseAgent
 from models import ChatRequest, ChatResponse
 from llm import get_client, AGENT_MODEL
+from tools.comms_tools import get_stale_threads, create_draft_in_queue
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -65,6 +66,16 @@ class EchoAgent(BaseAgent):
     async def handle(self, request: ChatRequest) -> ChatResponse:
         client = get_client()
         context = await self.fetch_context(request.user_id or '')
+
+        # Enrich context with tool-sourced stale thread details (urgency breakdown)
+        if request.user_id:
+            threads = await get_stale_threads(request.user_id, min_days=3, limit=5)
+            high_urgency = [t for t in threads if t.get('urgency') == 'high' and 'error' not in t]
+            if high_urgency:
+                context += f'\nHIGH-URGENCY THREADS ({len(high_urgency)} threads stale 7+ days):'
+                for t in high_urgency:
+                    context += f'\n  [{t["days_stale"]}d] "{t["subject"][:60]}" from {t["from"][:40]}'
+
         messages = [{'role': m.role, 'content': m.content} for m in request.history]
         messages.append({'role': 'user', 'content': request.message})
 

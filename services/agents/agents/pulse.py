@@ -5,6 +5,7 @@ from agents.base import BaseAgent
 from models import ChatRequest, ChatResponse
 from llm import get_client, AGENT_MODEL
 from db import safe_single
+from tools.health_tools import log_workout, log_nutrition, get_recovery_trend, WorkoutLogInput, NutritionLogInput
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
@@ -63,8 +64,23 @@ class PulseAgent(BaseAgent):
         return '\n'.join(lines)
 
     async def handle(self, request: ChatRequest) -> ChatResponse:
+        # Detect logging intent
+        msg_lower = request.message.lower()
+
+        if request.user_id and any(kw in msg_lower for kw in ['trained', 'workout', 'lifted', 'ran ', 'exercised']):
+            # Parse workout from message using LLM, then log it
+            # For now, flag it as a tool action in the approval queue
+            pass  # Tool calling will be implemented with PydanticAI in next iteration
+
         client = get_client()
         context = await self.fetch_context(request.user_id or '')
+
+        # Add recovery trend to context if not already there
+        if request.user_id:
+            trend = await get_recovery_trend(request.user_id, days=7)
+            if trend.get('trend') != 'no_data':
+                context += f'\nRECOVERY TREND (7d): {trend["trend"]} (avg {trend["avg"]}%)'
+
         messages = [{'role': m.role, 'content': m.content} for m in request.history]
         messages.append({'role': 'user', 'content': request.message})
 
