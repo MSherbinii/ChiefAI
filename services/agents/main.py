@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()  # must be before all imports that read env vars
 
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -14,6 +15,10 @@ from connectors.github import sync_github
 from connectors.whoop import sync_whoop
 from connectors.imap_email import sync_imap
 from feedback import record_approval_feedback, get_agent_performance, ApprovalOutcome
+from embeddings import update_entity_embeddings, update_communication_embeddings
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from proactive import run_proactive_scan_all_users, run_proactive_scan
+from supabase import create_client
 import asyncio
 
 app = FastAPI(title='Chief Agent Service', version='0.1.0')
@@ -25,6 +30,55 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+
+scheduler = AsyncIOScheduler()
+
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+
+
+async def run_daily_brief_for_all():
+    """Run morning brief + momentum score for all connected users."""
+    try:
+        sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        users = sb.table('connector_tokens') \
+            .select('user_id') \
+            .eq('sync_status', 'ok') \
+            .execute()
+        user_ids = list(set(r['user_id'] for r in (users.data or [])))
+
+        for uid in user_ids:
+            try:
+                await calculate_momentum(uid)
+                await generate_morning_brief(uid)
+            except Exception as e:
+                print(f'Brief generation failed for {uid}: {e}')
+    except Exception as e:
+        print(f'Daily brief job error: {e}')
+
+
+@app.on_event('startup')
+async def startup_event():
+    scheduler.add_job(
+        run_proactive_scan_all_users,
+        'interval',
+        hours=4,
+        id='proactive_scan',
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        run_daily_brief_for_all,
+        'cron',
+        hour=7, minute=0,
+        id='daily_brief',
+        replace_existing=True,
+    )
+    scheduler.start()
+
+
+@app.on_event('shutdown')
+async def shutdown_event():
+    scheduler.shutdown()
 
 
 class SyncRequest(BaseModel):
@@ -110,6 +164,19 @@ async def approval_feedback(req: FeedbackRequest):
 @app.get('/feedback/performance/{user_id}/{agent}')
 async def agent_performance(user_id: str, agent: str):
     return await get_agent_performance(user_id, agent)
+
+
+@app.post('/embeddings/update')
+async def update_embeddings(req: SyncRequest):
+    entities = await update_entity_embeddings(req.user_id)
+    comms = await update_communication_embeddings(req.user_id)
+    return {'entities': entities, 'communications': comms}
+
+
+@app.post('/proactive/scan')
+async def proactive_scan(req: SyncRequest):
+    result = await run_proactive_scan(req.user_id)
+    return result
 
 
 @app.post('/connectors/imap/verify')
