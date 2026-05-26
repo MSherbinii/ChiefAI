@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from models import ChatRequest, ChatResponse
 from orchestrator import route_and_handle
 from scoring.momentum import calculate_momentum
+from brief.generator import generate_morning_brief
 from connectors.gmail import sync_gmail
 from connectors.github import sync_github
 from connectors.whoop import sync_whoop
@@ -26,6 +27,11 @@ app.add_middleware(
 
 class SyncRequest(BaseModel):
     user_id: str
+
+
+class BriefRequest(BaseModel):
+    user_id: str
+    user_name: str = 'there'
 
 
 class IMAPVerifyRequest(BaseModel):
@@ -72,6 +78,12 @@ async def sync_imap_route(req: SyncRequest):
 @app.post('/score/momentum')
 async def score_momentum(req: SyncRequest):
     result = await calculate_momentum(req.user_id)
+    return result
+
+
+@app.post('/brief/generate')
+async def generate_brief(req: BriefRequest):
+    result = await generate_morning_brief(req.user_id, req.user_name)
     return result
 
 
