@@ -1,3 +1,4 @@
+import asyncio
 import imaplib
 import email
 import os
@@ -94,6 +95,13 @@ async def sync_imap(user_id: str):
             'last_synced_at': datetime.now(timezone.utc).isoformat(),
             'error_message': None,
         }).eq('user_id', user_id).eq('connector', 'imap_uni').execute()
+
+        # Trigger embedding update for new communications
+        try:
+            from embeddings import update_communication_embeddings
+            asyncio.create_task(update_communication_embeddings(user_id))
+        except Exception:
+            pass
 
     except Exception as e:
         sb.table('connector_tokens').update({

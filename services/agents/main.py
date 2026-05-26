@@ -20,6 +20,7 @@ from feedback import record_approval_feedback, get_agent_performance, ApprovalOu
 from embeddings import update_entity_embeddings, update_communication_embeddings
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from proactive import run_proactive_scan_all_users, run_proactive_scan
+from knowledge_extractor import run_background_extraction
 from supabase import create_client
 import asyncio
 
@@ -187,6 +188,12 @@ async def update_embeddings(req: SyncRequest):
 async def proactive_scan(req: SyncRequest):
     result = await run_proactive_scan(req.user_id)
     return result
+
+
+@app.post('/knowledge/extract')
+async def extract_knowledge(req: SyncRequest):
+    asyncio.create_task(run_background_extraction(req.user_id))
+    return {'status': 'extraction_started'}
 
 
 @app.post('/connectors/imap/verify')

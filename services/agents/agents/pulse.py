@@ -73,7 +73,7 @@ class PulseAgent(BaseAgent):
             pass  # Tool calling will be implemented with PydanticAI in next iteration
 
         client = get_client()
-        context = await self.fetch_context(request.user_id or '')
+        context = await self.build_full_context(request.user_id or '', request.message)
 
         # Add recovery trend to context if not already there
         if request.user_id:

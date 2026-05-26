@@ -65,7 +65,7 @@ class EchoAgent(BaseAgent):
 
     async def handle(self, request: ChatRequest) -> ChatResponse:
         client = get_client()
-        context = await self.fetch_context(request.user_id or '')
+        context = await self.build_full_context(request.user_id or '', request.message)
 
         # Enrich context with tool-sourced stale thread details (urgency breakdown)
         if request.user_id:

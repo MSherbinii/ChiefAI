@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 import os
 import re
@@ -124,6 +125,27 @@ async def sync_gmail(user_id: str):
             'last_synced_at': datetime.now(timezone.utc).isoformat(),
             'error_message': None,
         }).eq('user_id', user_id).eq('connector', 'gmail').execute()
+
+        # Trigger embedding update for new communications
+        try:
+            from embeddings import update_communication_embeddings
+            asyncio.create_task(update_communication_embeddings(user_id))
+        except Exception:
+            pass
+
+        # Trigger embedding update for new People entities
+        try:
+            from embeddings import update_entity_embeddings
+            asyncio.create_task(update_entity_embeddings(user_id))
+        except Exception:
+            pass
+
+        # Trigger knowledge extraction
+        try:
+            from knowledge_extractor import run_background_extraction
+            asyncio.create_task(run_background_extraction(user_id))
+        except Exception:
+            pass
 
     except Exception as e:
         sb.table('connector_tokens').update({

@@ -125,6 +125,15 @@ async def generate_morning_brief(user_id: str, user_name: str = 'there') -> dict
     context = await gather_brief_context(sb, user_id)
     today = datetime.now(timezone.utc).date().isoformat()
 
+    # After gathering context, enhance with semantic search
+    try:
+        from semantic_search import rag_context_for_query
+        semantic_ctx = await rag_context_for_query(user_id, f"morning brief health finance work admin {user_name}")
+        if semantic_ctx:
+            context += f'\n\nSEMANTIC CONTEXT:\n{semantic_ctx}'
+    except Exception:
+        pass  # RAG is enhancement, not required
+
     client = get_client()
     response = client.messages.create(
         model=BRIEF_MODEL,

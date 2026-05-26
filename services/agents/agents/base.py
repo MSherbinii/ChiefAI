@@ -22,8 +22,38 @@ class BaseAgent(ABC):
 
     @abstractmethod
     async def fetch_context(self, user_id: str) -> str:
-        """Fetch relevant Life Graph data for this agent. Returns formatted string."""
+        """Fetch domain-specific Life Graph data. Returns formatted string."""
         ...
+
+    async def fetch_rag_context(self, user_id: str, query: str) -> str:
+        """
+        Semantic RAG context injection.
+        Searches Life Graph entities and communications relevant to the query.
+        Returns empty string gracefully if RAG fails (non-blocking).
+        """
+        if not user_id or not query:
+            return ''
+        try:
+            from semantic_search import rag_context_for_query
+            return await rag_context_for_query(user_id, query)
+        except Exception:
+            return ''
+
+    async def build_full_context(self, user_id: str, query: str) -> str:
+        """
+        Combines domain context + RAG context.
+        Called by handle() to build the complete system prompt context.
+        """
+        domain_ctx = await self.fetch_context(user_id)
+        rag_ctx = await self.fetch_rag_context(user_id, query)
+
+        parts = []
+        if domain_ctx:
+            parts.append(domain_ctx)
+        if rag_ctx:
+            parts.append(f'\nSEMANTIC CONTEXT (relevant to your query):\n{rag_ctx}')
+
+        return '\n'.join(parts)
 
     @abstractmethod
     async def handle(self, request: ChatRequest) -> ChatResponse:
