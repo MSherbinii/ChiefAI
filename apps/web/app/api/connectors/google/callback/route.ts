@@ -69,5 +69,11 @@ export async function GET(request: Request) {
     body: JSON.stringify({ user_id: user.id }),
   }).catch(() => {});
 
+  fetch(`${agentUrl}/brief/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: user.id, user_name: userInfo.given_name ?? 'there' }),
+  }).catch(() => {});
+
   return NextResponse.redirect(`${origin}/settings?connected=google`);
 }

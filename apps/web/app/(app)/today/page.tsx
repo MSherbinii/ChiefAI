@@ -1,18 +1,19 @@
+// apps/web/app/(app)/today/page.tsx
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { TopBar } from '@/components/layout/TopBar';
 import { ConnectGate } from '@/components/today/ConnectGate';
-import { MorningBriefReal } from '@/components/today/MorningBriefReal';
+import { MorningBriefReal, type AiBriefSection } from '@/components/today/MorningBriefReal';
 import { MomentumScore } from '@/components/today/MomentumScore';
 import { ApprovalQueueServer } from '@/components/today/ApprovalQueueServer';
-import { Activity, Briefcase, FileText } from 'lucide-react';
+import { LifeDebt } from '@/components/today/LifeDebt';
 
 export default async function TodayPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  // Check if any connector is live
+  // Gate: at least one connector must be live
   const { data: tokens } = await supabase
     .from('connector_tokens')
     .select('connector, sync_status')
@@ -21,7 +22,7 @@ export default async function TodayPage() {
 
   const hasLiveConnector = (tokens ?? []).length > 0;
 
-  // Fetch latest momentum score
+  // Latest momentum score
   const { data: scoreRow } = await supabase
     .from('momentum_scores')
     .select('*')
@@ -30,105 +31,42 @@ export default async function TodayPage() {
     .limit(1)
     .maybeSingle();
 
-  // Fetch pending approval queue items
+  // Latest AI-generated brief for today
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: brief } = await supabase
+    .from('briefs')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('brief_date', today)
+    .eq('type', 'morning')
+    .maybeSingle();
+
+  // Pending approval queue
   const { data: queueItems } = await supabase
     .from('approval_queue')
-    .select('id, agent, title, description, risk_level')
+    .select('id, agent, title, description, risk_level, context_capsule')
     .eq('user_id', user.id)
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
     .limit(10);
 
-  // Build brief sections from real data
-  const briefSections: Array<{
-    domain: 'body' | 'work' | 'admin';
-    label: string;
-    agent: string;
-    icon: typeof Activity;
-    headline: string;
-    detail: string;
-    status: 'ok' | 'med' | 'high' | 'crit';
-  }> = [];
-
-  if (hasLiveConnector) {
-    // Body: latest WHOOP recovery
-    const { data: latestRecovery } = await supabase
-      .from('lg_health')
-      .select('value, recorded_at')
-      .eq('user_id', user.id)
-      .eq('metric', 'recovery')
-      .order('recorded_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (latestRecovery) {
-      const val = latestRecovery.value as Record<string, number> | null;
-      const score = val?.recovery_score ?? 0;
-      briefSections.push({
-        domain: 'body',
-        label: 'Body',
-        agent: 'Pulse',
-        icon: Activity,
-        headline: `Recovery ${score}%`,
-        detail: score >= 67
-          ? "You're in the green. Train as planned."
-          : score >= 34
-          ? 'Moderate recovery. Consider lighter intensity today.'
-          : 'Low recovery. Rest or zone 2 recommended.',
-        status: score >= 67 ? 'ok' : score >= 34 ? 'med' : 'high',
-      });
-    }
-
-    // Work: stale communications
-    const { data: staleComms } = await supabase
-      .from('lg_communications')
-      .select('subject, participants, last_message_at, staleness_days')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .gte('staleness_days', 3)
-      .order('staleness_days', { ascending: false })
-      .limit(3);
-
-    if (staleComms && staleComms.length > 0) {
-      const top = staleComms[0];
-      briefSections.push({
-        domain: 'work',
-        label: 'Work',
-        agent: 'Echo + Forge',
-        icon: Briefcase,
-        headline: `${staleComms.length} thread${staleComms.length > 1 ? 's' : ''} need attention`,
-        detail: `"${((top.subject as string) ?? '').slice(0, 60)}" — ${top.staleness_days} days without reply.`,
-        status: staleComms.some(c => ((c.staleness_days as number) ?? 0) >= 7) ? 'high' : 'med',
-      });
-    }
-
-    // Admin: pending queue items
-    if (queueItems && queueItems.length > 0) {
-      briefSections.push({
-        domain: 'admin',
-        label: 'Admin',
-        agent: 'Clerk',
-        icon: FileText,
-        headline: `${queueItems.length} item${queueItems.length > 1 ? 's' : ''} in queue`,
-        detail: queueItems[0].title as string,
-        status: 'med',
-      });
-    }
-  }
-
   const domains = scoreRow ? [
-    { label: 'Body',       value: (scoreRow.body as number) ?? 0,       color: '#18E6D8' },
-    { label: 'Money',      value: (scoreRow.money as number) ?? 0,      color: '#F7A93B' },
-    { label: 'Work',       value: (scoreRow.work as number) ?? 0,       color: '#8A3AFF' },
-    { label: 'Admin',      value: (scoreRow.admin as number) ?? 0,      color: '#38F2A8' },
-    { label: 'Discipline', value: (scoreRow.discipline as number) ?? 0, color: '#3B82F6' },
+    { label: 'Body',       value: scoreRow.body ?? 0,       color: '#18E6D8' },
+    { label: 'Money',      value: scoreRow.money ?? 0,      color: '#F7A93B' },
+    { label: 'Work',       value: scoreRow.work ?? 0,       color: '#8A3AFF' },
+    { label: 'Admin',      value: scoreRow.admin ?? 0,      color: '#38F2A8' },
+    { label: 'Discipline', value: scoreRow.discipline ?? 0, color: '#3B82F6' },
   ] : [];
 
-  const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? 'Good morning, Mohamed.' :
-    hour < 18 ? 'Good afternoon, Mohamed.' :
-                'Good evening, Mohamed.';
+  const greeting = brief?.greeting ?? (() => {
+    const hour = new Date().getHours();
+    return hour < 12 ? 'Good morning.' : hour < 18 ? 'Good afternoon.' : 'Good evening.';
+  })();
+
+  const sections: AiBriefSection[] = (brief?.sections as AiBriefSection[]) ?? [];
+  const lifeDebt = brief?.life_debt as { total: number; items: { domain: string; count: number; description: string }[] } | null;
+  const bestMove = (brief as any)?.best_move as string | undefined;
+  const patterns = (brief as any)?.patterns as string[] | undefined;
 
   const queueRows = (queueItems ?? []).map(i => ({
     id: i.id as string,
@@ -140,16 +78,22 @@ export default async function TodayPage() {
 
   return (
     <>
-      <TopBar title="Today" momentumScore={scoreRow?.total as number | undefined} />
+      <TopBar title="Today" momentumScore={scoreRow?.total} />
       <main className="flex-1 overflow-y-auto p-4 max-w-3xl">
         {!hasLiveConnector ? (
           <ConnectGate />
         ) : (
           <div className="space-y-5">
-            {scoreRow && (
-              <MomentumScore total={scoreRow.total as number} domains={domains} />
+            {scoreRow && <MomentumScore total={scoreRow.total} domains={domains} />}
+            {lifeDebt && lifeDebt.total > 0 && (
+              <LifeDebt total={lifeDebt.total} items={lifeDebt.items} />
             )}
-            <MorningBriefReal sections={briefSections} greeting={greeting} />
+            <MorningBriefReal
+              greeting={greeting}
+              sections={sections}
+              bestMove={bestMove}
+              patterns={patterns}
+            />
             <ApprovalQueueServer items={queueRows} />
           </div>
         )}
