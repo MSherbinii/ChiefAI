@@ -39,6 +39,29 @@ export default async function TodayPage() {
     .limit(1)
     .maybeSingle();
 
+  // Fetch last 7 momentum score snapshots for sparkline
+  const { data: scoreHistory } = await supabase
+    .from('momentum_scores')
+    .select('total, scored_at')
+    .eq('user_id', user.id)
+    .order('scored_at', { ascending: false })
+    .limit(7);
+
+  // Yesterday's score for delta
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStart = yesterday.toISOString().slice(0, 10);
+
+  const { data: yesterdayScore } = await supabase
+    .from('momentum_scores')
+    .select('total')
+    .eq('user_id', user.id)
+    .gte('scored_at', yesterdayStart)
+    .lt('scored_at', new Date().toISOString().slice(0, 10) + 'T00:00:00Z')
+    .order('scored_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   // Latest AI-generated brief for today
   const today = new Date().toISOString().slice(0, 10);
   const { data: brief } = await supabase
@@ -101,7 +124,14 @@ export default async function TodayPage() {
             <div className="flex items-center justify-end">
               <RegenerateButton />
             </div>
-            {scoreRow && <MomentumScore total={scoreRow.total} domains={domains} />}
+            {scoreRow && (
+              <MomentumScore
+                total={scoreRow.total}
+                domains={domains}
+                previousTotal={yesterdayScore?.total}
+                history={scoreHistory?.reverse() ?? []}
+              />
+            )}
             {lifeDebt && lifeDebt.total > 0 && (
               <LifeDebt total={lifeDebt.total} items={lifeDebt.items} />
             )}
