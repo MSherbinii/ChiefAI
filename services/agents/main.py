@@ -2,12 +2,14 @@ from dotenv import load_dotenv
 load_dotenv()  # must be before all imports that read env vars
 
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 from models import ChatRequest, ChatResponse
 from orchestrator import route_and_handle
+from voice_intent import classify_voice_intent, VoiceIntent
 from scoring.momentum import calculate_momentum
 from brief.generator import generate_morning_brief
 from connectors.gmail import sync_gmail
@@ -20,16 +22,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from proactive import run_proactive_scan_all_users, run_proactive_scan
 from supabase import create_client
 import asyncio
-
-app = FastAPI(title='Chief Agent Service', version='0.1.0')
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=['http://localhost:3000'],
-    allow_credentials=True,
-    allow_methods=['*'],
-    allow_headers=['*'],
-)
 
 scheduler = AsyncIOScheduler()
 
@@ -57,8 +49,8 @@ async def run_daily_brief_for_all():
         print(f'Daily brief job error: {e}')
 
 
-@app.on_event('startup')
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     scheduler.add_job(
         run_proactive_scan_all_users,
         'interval',
@@ -74,11 +66,19 @@ async def startup_event():
         replace_existing=True,
     )
     scheduler.start()
-
-
-@app.on_event('shutdown')
-async def shutdown_event():
+    yield
     scheduler.shutdown()
+
+
+app = FastAPI(title='Chief Agent Service', version='0.1.0', lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['http://localhost:3000'],
+    allow_credentials=True,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
 
 
 class SyncRequest(BaseModel):
@@ -105,6 +105,16 @@ def health():
 @app.post('/chat', response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
     return await route_and_handle(request)
+
+
+class VoiceClassifyRequest(BaseModel):
+    transcript: str
+    context: str = ''
+
+
+@app.post('/voice/classify', response_model=VoiceIntent)
+async def classify_voice(req: VoiceClassifyRequest) -> VoiceIntent:
+    return classify_voice_intent(req.transcript, req.context)
 
 
 @app.post('/sync/google')
