@@ -1,7 +1,9 @@
+from dotenv import load_dotenv
+load_dotenv()  # must be before all imports that read env vars
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from dotenv import load_dotenv
 from models import ChatRequest, ChatResponse
 from orchestrator import route_and_handle
 from scoring.momentum import calculate_momentum
@@ -11,8 +13,6 @@ from connectors.github import sync_github
 from connectors.whoop import sync_whoop
 from connectors.imap_email import sync_imap
 import asyncio
-
-load_dotenv()
 
 app = FastAPI(title='Chief Agent Service', version='0.1.0')
 
