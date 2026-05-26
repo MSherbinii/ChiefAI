@@ -7,11 +7,19 @@ import { MorningBriefReal, type AiBriefSection } from '@/components/today/Mornin
 import { MomentumScore } from '@/components/today/MomentumScore';
 import { ApprovalQueueServer } from '@/components/today/ApprovalQueueServer';
 import { LifeDebt } from '@/components/today/LifeDebt';
+import { BriefLoader } from '@/components/today/BriefLoader';
+import { RegenerateButton } from '@/components/today/RegenerateButton';
 
 export default async function TodayPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', user.id)
+    .maybeSingle();
 
   // Gate: at least one connector must be live
   const { data: tokens } = await supabase
@@ -83,8 +91,16 @@ export default async function TodayPage() {
       <main className="flex-1 overflow-y-auto p-4 max-w-3xl">
         {!hasLiveConnector ? (
           <ConnectGate />
+        ) : !brief ? (
+          <BriefLoader
+            userId={user.id}
+            userName={profile?.display_name ?? 'there'}
+          />
         ) : (
           <div className="space-y-5">
+            <div className="flex items-center justify-end">
+              <RegenerateButton />
+            </div>
             {scoreRow && <MomentumScore total={scoreRow.total} domains={domains} />}
             {lifeDebt && lifeDebt.total > 0 && (
               <LifeDebt total={lifeDebt.total} items={lifeDebt.items} />
