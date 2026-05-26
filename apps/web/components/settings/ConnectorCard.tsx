@@ -4,6 +4,7 @@ import { Panel, Button, StatusDot } from '@/components/design-system';
 import type { LucideIcon } from 'lucide-react';
 import type { ConnectorStatus } from '@/lib/connectors';
 import { toast } from 'sonner';
+import { ConnectorSyncButton } from './ConnectorSyncButton';
 
 interface ConnectorCardProps {
   id: string;
@@ -15,6 +16,7 @@ interface ConnectorCardProps {
   extra: Record<string, string> | null;
   errorMessage: string | null;
   connectHref?: string;
+  syncConnector?: string;
   onPATConnect?: (pat: string, username: string) => Promise<void>;
   onIMAPConnect?: (email: string, password: string, host: string, port: number) => Promise<void>;
 }
@@ -31,7 +33,7 @@ const inputCls = 'w-full h-8 px-3 rounded-[8px] bg-[rgba(247,240,255,0.04)] bord
 export function ConnectorCard({
   id, name, description, icon: Icon,
   status, lastSynced, extra, errorMessage,
-  connectHref, onPATConnect, onIMAPConnect,
+  connectHref, syncConnector, onPATConnect, onIMAPConnect,
 }: ConnectorCardProps) {
   const [showForm, setShowForm] = useState(false);
   const [patValue, setPatValue] = useState('');
@@ -99,9 +101,14 @@ export function ConnectorCard({
               </Button>
             )
           ) : (
-            <Button variant="outline" size="xs" disabled={status === 'syncing'}>
-              {status === 'syncing' ? 'Syncing…' : 'Synced'}
-            </Button>
+            <>
+              {syncConnector && status === 'connected' && (
+                <ConnectorSyncButton connector={syncConnector} />
+              )}
+              <Button variant="outline" size="xs" disabled={status === 'syncing'}>
+                {status === 'syncing' ? 'Syncing…' : 'Synced'}
+              </Button>
+            </>
           )}
         </div>
       </div>

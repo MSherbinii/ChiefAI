@@ -56,6 +56,7 @@ export function SettingsConnectors({ states }: Props) {
           icon={Mail}
           {...getState(states, 'gmail')}
           connectHref="/api/connectors/google/auth"
+          syncConnector="google"
         />
         <ConnectorCard
           id="google_calendar"
@@ -64,6 +65,7 @@ export function SettingsConnectors({ states }: Props) {
           icon={Calendar}
           {...getState(states, 'google_calendar')}
           connectHref="/api/connectors/google/auth"
+          syncConnector="google"
         />
         <ConnectorCard
           id="github"
@@ -72,6 +74,7 @@ export function SettingsConnectors({ states }: Props) {
           icon={GitBranch}
           {...getState(states, 'github')}
           onPATConnect={connectGitHub}
+          syncConnector="github"
         />
         <ConnectorCard
           id="whoop"
@@ -80,6 +83,7 @@ export function SettingsConnectors({ states }: Props) {
           icon={Activity}
           {...getState(states, 'whoop')}
           connectHref="/api/connectors/whoop/auth"
+          syncConnector="whoop"
         />
         <ConnectorCard
           id="imap_uni"
@@ -88,6 +92,7 @@ export function SettingsConnectors({ states }: Props) {
           icon={BookOpen}
           {...getState(states, 'imap_uni')}
           onIMAPConnect={connectIMAP}
+          syncConnector="imap_uni"
         />
       </div>
     </section>
