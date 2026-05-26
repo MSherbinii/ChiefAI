@@ -99,9 +99,7 @@ create table public.lg_communications (
   summary         text,
   last_message_at timestamptz,
   status          text default 'active',
-  staleness_days  integer generated always as (
-    extract(day from now() - last_message_at)::integer
-  ) stored,
+  staleness_days  integer default 0,
   urgency         text default 'normal',
   related_person_id uuid references public.lg_people(id),
   related_project_id uuid references public.lg_projects(id),
