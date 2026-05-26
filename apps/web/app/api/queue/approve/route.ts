@@ -13,5 +13,13 @@ export async function POST(request: Request) {
     .eq('id', id)
     .eq('user_id', user.id);
 
+  // Fire-and-forget: send approval signal to RL feedback loop
+  const agentUrl = process.env.AGENT_SERVICE_URL ?? 'http://localhost:8001';
+  fetch(`${agentUrl}/feedback/approval`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ queue_item_id: id, user_id: user.id, approved: true }),
+  }).catch(() => {});
+
   return NextResponse.json({ ok: true });
 }

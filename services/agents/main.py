@@ -4,6 +4,7 @@ load_dotenv()  # must be before all imports that read env vars
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 from models import ChatRequest, ChatResponse
 from orchestrator import route_and_handle
 from scoring.momentum import calculate_momentum
@@ -12,6 +13,7 @@ from connectors.gmail import sync_gmail
 from connectors.github import sync_github
 from connectors.whoop import sync_whoop
 from connectors.imap_email import sync_imap
+from feedback import record_approval_feedback, get_agent_performance, ApprovalOutcome
 import asyncio
 
 app = FastAPI(title='Chief Agent Service', version='0.1.0')
@@ -85,6 +87,29 @@ async def score_momentum(req: SyncRequest):
 async def generate_brief(req: BriefRequest):
     result = await generate_morning_brief(req.user_id, req.user_name)
     return result
+
+
+class FeedbackRequest(BaseModel):
+    queue_item_id: str
+    user_id: str
+    approved: bool
+    time_to_decision_seconds: Optional[float] = None
+
+
+@app.post('/feedback/approval')
+async def approval_feedback(req: FeedbackRequest):
+    result = await record_approval_feedback(ApprovalOutcome(
+        queue_item_id=req.queue_item_id,
+        user_id=req.user_id,
+        approved=req.approved,
+        time_to_decision_seconds=req.time_to_decision_seconds,
+    ))
+    return result
+
+
+@app.get('/feedback/performance/{user_id}/{agent}')
+async def agent_performance(user_id: str, agent: str):
+    return await get_agent_performance(user_id, agent)
 
 
 @app.post('/connectors/imap/verify')
