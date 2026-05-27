@@ -69,6 +69,13 @@ export async function GET(request: Request) {
     body: JSON.stringify({ user_id: user.id }),
   }).catch(() => {});
 
+  // Trigger Email Intelligence deep scan
+  fetch(`${agentUrl}/email/deep-scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: user.id }),
+  }).catch(() => {});
+
   fetch(`${agentUrl}/sync/google_calendar`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
