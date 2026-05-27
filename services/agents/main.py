@@ -25,7 +25,10 @@ from knowledge_extractor import run_background_extraction
 from hierarchy import get_pending_tasks, delegate_task, AGENT_HIERARCHY
 from document_extractor import extract_document_fields, DocumentExtractRequest, ExtractedDocument
 from email_intelligence import deep_scan_inbox, get_scan_status, cluster_entities, detect_subscriptions
+from email_intelligence.case_discoverer import run_case_discovery
+from email_intelligence.cross_entity_reasoner import run_cross_entity_reasoning, merge_linked_cases
 from supabase import create_client
+from datetime import datetime, timezone
 import asyncio
 
 scheduler = AsyncIOScheduler()
@@ -104,6 +107,33 @@ class IMAPVerifyRequest(BaseModel):
     password: str
     imap_host: str
     imap_port: int = 993
+
+
+class EmailFeedbackRequest(BaseModel):
+    user_id: str
+    feedback_type: str  # case_confirm, case_reject, case_merge, entity_correct, context_injection
+    target_id: Optional[str] = None
+    target_type: Optional[str] = None  # case, entity, subscription
+    old_value: Optional[dict] = None
+    new_value: Optional[dict] = None
+    context: Optional[str] = None
+
+
+class CaseNoteRequest(BaseModel):
+    user_id: str
+    note: str
+
+
+class MergeCasesRequest(BaseModel):
+    user_id: str
+    case_id_1: str
+    case_id_2: str
+    reason: str
+
+
+class UnsubscribeRequest(BaseModel):
+    user_id: str
+    subscription_id: str
 
 
 @app.get('/health')
@@ -220,6 +250,228 @@ async def email_stats(user_id: str):
         'subscriptions': sub_res.count or 0,
         'entities': entity_res.count or 0,
         'scan_status': scan.get('status', 'idle'),
+    }
+
+
+def _build_interview_message(cases: list, dead_subs: list) -> str:
+    """Build the natural-language initial interview message."""
+    lines = ["I've analyzed your full inbox. Here's what I found:\n"]
+
+    PRIORITY_EMOJI = {'critical': '🔴', 'high': '🟠', 'normal': '🟡', 'low': '🟢'}
+    for i, c in enumerate(cases[:6], 1):
+        emoji = PRIORITY_EMOJI.get(c.get('priority', 'normal'), '🟡')
+        status = c.get('status', 'open').replace('_', ' ').title()
+        title = c.get('title', 'Unknown')
+        summary = c.get('summary', '')[:100] if c.get('summary') else ''
+        pending = c.get('pending_action', '')
+        lines.append(f'{i}. {emoji} {title} ({status})')
+        if summary:
+            lines.append(f'   {summary}')
+        if pending:
+            lines.append(f'   → Next: {pending}')
+
+    if dead_subs:
+        lines.append(f'\nAlso found {len(dead_subs)} newsletters you never open — want me to clean those up?')
+
+    lines.append('\nDid I get these right? Anything missing or wrong?')
+    return '\n'.join(lines)
+
+
+@app.post('/email/cases/run-discovery')
+async def run_email_case_discovery(req: EmailScanRequest):
+    """Trigger case discovery pipeline: discover_cases → cross_entity_reasoning."""
+    async def pipeline():
+        try:
+            await run_case_discovery(req.user_id)
+            await run_cross_entity_reasoning(req.user_id)
+        except Exception as e:
+            pass  # Cases are best-effort
+
+    asyncio.create_task(pipeline())
+    return {'status': 'discovery_started', 'user_id': req.user_id}
+
+
+@app.get('/email/cases/{user_id}')
+async def list_email_cases(user_id: str, status: Optional[str] = None):
+    """List all active email cases for a user."""
+    from supabase import create_client
+    import os as _os
+    sb = create_client(_os.getenv('SUPABASE_URL'), _os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
+
+    query = sb.table('email_cases').select(
+        'id, title, status, priority, category, summary, pending_action, stalled_since, confidence, updated_at'
+    ).eq('user_id', user_id)
+
+    if status:
+        query = query.eq('status', status)
+    else:
+        query = query.not_.is_('status', 'resolved')
+
+    result = query.order('priority', desc=True).limit(50).execute()
+    return {'cases': result.data or [], 'total': len(result.data or [])}
+
+
+@app.get('/email/case/{case_id}')
+async def get_email_case(case_id: str):
+    """Get full case details including timeline."""
+    from supabase import create_client
+    import os as _os
+    sb = create_client(_os.getenv('SUPABASE_URL'), _os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
+    result = sb.table('email_cases').select('*').eq('id', case_id).maybe_single().execute()
+    if not result.data:
+        return {'error': 'Case not found'}, 404
+    return result.data
+
+
+@app.post('/email/case/{case_id}/note')
+async def add_case_note(case_id: str, req: CaseNoteRequest):
+    """Add user context/note to a case (RL signal: context_injection)."""
+    from supabase import create_client
+    import os as _os
+    sb = create_client(_os.getenv('SUPABASE_URL'), _os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
+
+    # Update user_notes on the case
+    sb.table('email_cases').update({
+        'user_notes': req.note,
+        'updated_at': datetime.now(timezone.utc).isoformat(),
+    }).eq('id', case_id).execute()
+
+    # Store as RL feedback
+    sb.table('email_feedback').insert({
+        'user_id': req.user_id,
+        'feedback_type': 'context_injection',
+        'target_id': case_id,
+        'target_type': 'case',
+        'new_value': {'note': req.note},
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    }).execute()
+
+    return {'ok': True, 'case_id': case_id}
+
+
+@app.post('/email/feedback')
+async def email_feedback(req: EmailFeedbackRequest):
+    """Store RL feedback signal from user corrections."""
+    from supabase import create_client
+    import os as _os
+    sb = create_client(_os.getenv('SUPABASE_URL'), _os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
+
+    sb.table('email_feedback').insert({
+        'user_id': req.user_id,
+        'feedback_type': req.feedback_type,
+        'target_id': req.target_id,
+        'target_type': req.target_type,
+        'old_value': req.old_value,
+        'new_value': req.new_value,
+        'context': req.context,
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    }).execute()
+
+    # Apply feedback immediately for entity corrections
+    if req.feedback_type == 'entity_correct' and req.target_id and req.new_value:
+        new_rtype = req.new_value.get('relationship_type')
+        if new_rtype:
+            sb.table('entities').update({'relationship_type': new_rtype}) \
+                .eq('id', req.target_id).execute()
+
+    # Apply case status changes
+    if req.feedback_type in ('case_confirm', 'case_reject') and req.target_id:
+        if req.feedback_type == 'case_reject':
+            sb.table('email_cases').update({'status': 'resolved', 'confidence': 0.1}) \
+                .eq('id', req.target_id).execute()
+
+    return {'ok': True}
+
+
+@app.post('/email/cases/merge')
+async def merge_email_cases(req: MergeCasesRequest):
+    """Merge two cases that the user identifies as the same situation."""
+    master_id = await merge_linked_cases(
+        req.user_id, req.case_id_1, req.case_id_2, req.reason
+    )
+
+    # Store feedback
+    from supabase import create_client
+    import os as _os
+    sb = create_client(_os.getenv('SUPABASE_URL'), _os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
+    sb.table('email_feedback').insert({
+        'user_id': req.user_id,
+        'feedback_type': 'case_merge',
+        'target_id': master_id,
+        'target_type': 'case',
+        'new_value': {'merged_from': req.case_id_2, 'reason': req.reason},
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    }).execute()
+
+    return {'ok': True, 'master_case_id': master_id}
+
+
+@app.post('/email/unsubscribe')
+async def queue_unsubscribe(req: UnsubscribeRequest):
+    """Queue an unsubscribe action for a detected subscription."""
+    from supabase import create_client
+    import os as _os
+    sb = create_client(_os.getenv('SUPABASE_URL'), _os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
+
+    # Get subscription details
+    sub = sb.table('email_subscriptions').select('*').eq('id', req.subscription_id) \
+        .eq('user_id', req.user_id).maybe_single().execute()
+
+    if not sub.data:
+        return {'error': 'Subscription not found'}
+
+    # Create approval queue item
+    sb.table('approval_queue').insert({
+        'user_id': req.user_id,
+        'agent': 'Clerk',
+        'action_type': 'unsubscribe_email',
+        'risk_level': 'approve',
+        'title': f'Unsubscribe from {sub.data.get("sender_name") or sub.data["sender_email"]}',
+        'description': f'Remove from mailing list: {sub.data["sender_email"]}. Total received: {sub.data.get("total_received", 0)} emails.',
+        'payload': {
+            'sender_email': sub.data['sender_email'],
+            'unsubscribe_url': sub.data.get('unsubscribe_url'),
+            'subscription_id': req.subscription_id,
+        },
+        'context_capsule': {
+            'sources': ['email_subscriptions table'],
+            'reasoning': f'Engagement score: {sub.data.get("engagement_score", 0):.0%}, last received: {sub.data.get("last_received", "unknown")[:10]}',
+            'confidence': 'HIGH',
+        },
+        'status': 'pending',
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    }).execute()
+
+    # Mark subscription as decision pending
+    sb.table('email_subscriptions').update({'user_decision': 'unsubscribe'}) \
+        .eq('id', req.subscription_id).execute()
+
+    return {'ok': True, 'queued': True, 'sender': sub.data['sender_email']}
+
+
+@app.get('/email/present-cases/{user_id}')
+async def present_cases_summary(user_id: str):
+    """
+    Return a structured summary of cases for Echo to present to the user.
+    Used after case discovery to initiate the initial interview.
+    """
+    from supabase import create_client
+    import os as _os
+    sb = create_client(_os.getenv('SUPABASE_URL'), _os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
+
+    cases = sb.table('email_cases').select(
+        'id, title, status, priority, category, summary, pending_action'
+    ).eq('user_id', user_id).not_.is_('status', 'resolved') \
+     .order('priority', desc=True).limit(10).execute()
+
+    subs = sb.table('email_subscriptions').select('id, sender_email, total_received, engagement_score') \
+        .eq('user_id', user_id).eq('status', 'active') \
+        .lt('engagement_score', 0.2).execute()
+
+    return {
+        'cases': cases.data or [],
+        'dead_subscriptions': subs.data or [],
+        'message': _build_interview_message(cases.data or [], subs.data or []),
     }
 
 
