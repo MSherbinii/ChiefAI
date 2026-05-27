@@ -24,6 +24,7 @@ from proactive import run_proactive_scan_all_users, run_proactive_scan
 from knowledge_extractor import run_background_extraction
 from hierarchy import get_pending_tasks, delegate_task, AGENT_HIERARCHY
 from document_extractor import extract_document_fields, DocumentExtractRequest, ExtractedDocument
+from email_intelligence import deep_scan_inbox, get_scan_status, cluster_entities, detect_subscriptions
 from supabase import create_client
 import asyncio
 
@@ -94,6 +95,10 @@ class BriefRequest(BaseModel):
     user_name: str = 'there'
 
 
+class EmailScanRequest(BaseModel):
+    user_id: str
+
+
 class IMAPVerifyRequest(BaseModel):
     email: str
     password: str
@@ -149,6 +154,73 @@ async def sync_imap_route(req: SyncRequest):
 async def sync_calendar(req: SyncRequest):
     asyncio.create_task(sync_google_calendar(req.user_id))
     return {'status': 'sync_started', 'connector': 'google_calendar'}
+
+
+@app.post('/email/deep-scan')
+async def start_deep_scan(req: EmailScanRequest):
+    """Trigger full inbox deep scan + entity clustering + subscription detection."""
+    async def pipeline():
+        try:
+            await deep_scan_inbox(req.user_id)
+            await cluster_entities(req.user_id)
+            await detect_subscriptions(req.user_id)
+        except Exception as e:
+            from supabase import create_client
+            import os as _os
+            sb = create_client(
+                _os.getenv('SUPABASE_URL'),
+                _os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+            )
+            try:
+                sb.table('email_scan_status').update({
+                    'status': 'error',
+                    'error_message': str(e)[:200],
+                }).eq('user_id', req.user_id).execute()
+            except Exception:
+                pass
+
+    asyncio.create_task(pipeline())
+    return {'status': 'scan_started', 'user_id': req.user_id}
+
+
+@app.get('/email/scan-status/{user_id}')
+async def email_scan_status(user_id: str):
+    """Get current deep scan progress."""
+    return await get_scan_status(user_id)
+
+
+@app.get('/email/subscriptions/{user_id}')
+async def list_email_subscriptions(user_id: str):
+    """List detected email subscriptions for a user."""
+    from supabase import create_client
+    import os as _os
+    sb = create_client(_os.getenv('SUPABASE_URL'), _os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
+    res = sb.table('email_subscriptions').select('*') \
+        .eq('user_id', user_id) \
+        .eq('status', 'active') \
+        .order('engagement_score', desc=False) \
+        .limit(100).execute()
+    return {'subscriptions': res.data or [], 'total': len(res.data or [])}
+
+
+@app.get('/email/stats/{user_id}')
+async def email_stats(user_id: str):
+    """Get email intelligence statistics for a user."""
+    from supabase import create_client
+    import os as _os
+    sb = create_client(_os.getenv('SUPABASE_URL'), _os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
+
+    raw_res = sb.table('email_raw').select('id', count='exact', head=True).eq('user_id', user_id).execute()
+    sub_res = sb.table('email_subscriptions').select('id', count='exact', head=True).eq('user_id', user_id).eq('status', 'active').execute()
+    entity_res = sb.table('entities').select('id', count='exact', head=True).eq('user_id', user_id).not_.is_('relationship_type', 'null').execute()
+    scan = await get_scan_status(user_id)
+
+    return {
+        'total_emails': raw_res.count or 0,
+        'subscriptions': sub_res.count or 0,
+        'entities': entity_res.count or 0,
+        'scan_status': scan.get('status', 'idle'),
+    }
 
 
 @app.post('/score/momentum')
