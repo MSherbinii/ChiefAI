@@ -37,6 +37,13 @@ async def _get_valid_token(user_id: str) -> Optional[str]:
         expiry = datetime.fromisoformat(expiry_str.replace('Z', '+00:00'))
         if expiry < datetime.now(timezone.utc):
             new_tokens = await refresh_google_token(token_row['refresh_token'])
+            if new_tokens.get('error'):
+                # Token refresh failed — log it and return None to surface the error
+                _update_scan_status(sb, user_id,
+                    status='error',
+                    error_message=f"Gmail token refresh failed: {new_tokens.get('error')} - {new_tokens.get('error_description', '')}"
+                )
+                return None
             access_token = new_tokens.get('access_token', access_token)
             new_expiry = (datetime.now(timezone.utc) + timedelta(seconds=new_tokens.get('expires_in', 3600))).isoformat()
             sb.table('connector_tokens').update({

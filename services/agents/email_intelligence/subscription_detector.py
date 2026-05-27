@@ -157,7 +157,25 @@ async def detect_subscriptions(user_id: str) -> dict:
         if newsletter_signals < 2:
             continue
 
-        engagement_score = round(sd['read_count'] / total, 2) if total > 0 else 0
+        # Calculate staleness: how many days since last email
+        staleness_days = 0
+        if dates:
+            try:
+                last_date = datetime.fromisoformat(dates[-1].replace('Z', '+00:00'))
+                staleness_days = (datetime.now(timezone.utc) - last_date).days
+            except Exception:
+                pass
+
+        # Revised engagement: penalize based on staleness
+        # 0 = stale (>365 days old), 1 = active (recent)
+        if staleness_days > 365:
+            engagement_score = 0.0  # Dead subscription
+        elif staleness_days > 90:
+            engagement_score = 0.2  # Probably unwanted
+        elif staleness_days > 30:
+            engagement_score = round(sd['read_count'] / total, 2) * 0.6 if total > 0 else 0.0  # Partial
+        else:
+            engagement_score = round(sd['read_count'] / total, 2) if total > 0 else 0.0  # Recent
 
         entity_res = None
         if '@' in sender_email:

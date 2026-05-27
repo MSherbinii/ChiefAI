@@ -210,9 +210,9 @@ async def email_stats(user_id: str):
     import os as _os
     sb = create_client(_os.getenv('SUPABASE_URL'), _os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
 
-    raw_res = sb.table('email_raw').select('id', count='exact', head=True).eq('user_id', user_id).execute()
-    sub_res = sb.table('email_subscriptions').select('id', count='exact', head=True).eq('user_id', user_id).eq('status', 'active').execute()
-    entity_res = sb.table('entities').select('id', count='exact', head=True).eq('user_id', user_id).not_.is_('relationship_type', 'null').execute()
+    raw_res = sb.table('email_raw').select('id', count='exact').eq('user_id', user_id).limit(1).execute()
+    sub_res = sb.table('email_subscriptions').select('id', count='exact').eq('user_id', user_id).eq('status', 'active').limit(1).execute()
+    entity_res = sb.table('entities').select('id', count='exact').eq('user_id', user_id).not_.is_('relationship_type', 'null').limit(1).execute()
     scan = await get_scan_status(user_id)
 
     return {
