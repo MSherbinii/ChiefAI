@@ -105,27 +105,54 @@ async def build_email_entity_graph(user_id: str) -> dict:
     if not emails.data:
         return {'entities': {}, 'ref_to_domains': {}, 'temporal_adjacency': []}
 
+    # Get user's own email addresses to skip self-domains
+    user_domains = {'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'yahoo.com',
+                    'web.de', 'gmx.de', 't-online.de', 'icloud.com'}
+
     # Build domain → emails map
     domain_emails = defaultdict(list)
     for email in emails.data:
         from_email = email.get('from_email', '')
-        if '@' in from_email:
-            domain = from_email.split('@')[1].lower()
+        is_sent = email.get('is_sent', False)
+
+        # For sent emails: attribute to the RECIPIENT domain (not the sender = ourselves)
+        if is_sent:
+            to_emails = email.get('to_emails') or []
+            if isinstance(to_emails, list) and to_emails:
+                to_domain = to_emails[0].split('@')[1].lower() if '@' in to_emails[0] else ''
+                domain = to_domain if to_domain and to_domain not in user_domains else 'sent_unknown'
+            else:
+                domain = 'sent_unknown'
         else:
-            domain = from_email.lower()
+            if '@' in from_email:
+                domain = from_email.split('@')[1].lower()
+            else:
+                domain = from_email.lower()
+
+        if not domain or domain in user_domains:
+            continue
 
         # Extract references from this email
         text = (email.get('subject') or '') + ' ' + (email.get('body_text') or '') + ' ' + (email.get('snippet') or '')
         refs = _extract_references(text)
 
-        domain_emails[domain].append({
+        email_record = {
             'id': email['id'],
             'subject': email.get('subject', ''),
             'date': email.get('date', ''),
-            'is_sent': email.get('is_sent', False),
+            'is_sent': is_sent,
             'refs': refs,
             'snippet': (email.get('body_text') or email.get('snippet') or '')[:300],
-        })
+        }
+        domain_emails[domain].append(email_record)
+
+        # ALSO add references to the thread context: if this email replies to a known thread,
+        # attribute its references to ALL domains in that thread
+        # (This is what catches: you reply to kohlkg.com → 5284 ref gets added to kohlkg domain)
+        thread_id = email.get('thread_id', '')
+        if thread_id and refs:
+            # We'll handle cross-thread ref propagation in a second pass below
+            pass
 
     # Build ref → domains map (which domains share the same reference number)
     ref_to_domains = defaultdict(set)
