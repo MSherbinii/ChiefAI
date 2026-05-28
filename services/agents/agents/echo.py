@@ -43,13 +43,18 @@ async def _fetch_cases_context(user_id: str, query: str) -> str:
     now = datetime.now(timezone.utc)
     cutoff_active = (now - timedelta(days=365)).isoformat()  # Only show cases from last year by default
 
-    # Get active non-resolved cases
+    # Get active non-resolved cases — fetch all and sort by priority weight in Python
+    # (Supabase text ordering is alphabetical: normal > low > high > critical which is wrong)
     cases = sb.table('email_cases').select(
         'id, title, status, priority, category, summary, pending_action, stalled_since, timeline, entities, confidence, updated_at'
     ).eq('user_id', user_id) \
      .neq('status', 'resolved') \
-     .order('priority', desc=True) \
-     .limit(30).execute()
+     .limit(60).execute()
+
+    # Sort by priority weight descending
+    PRIORITY_WEIGHT = {'critical': 4, 'high': 3, 'normal': 2, 'low': 1}
+    if cases.data:
+        cases.data.sort(key=lambda x: PRIORITY_WEIGHT.get(x.get('priority', 'normal'), 2), reverse=True)
 
     if not cases.data:
         # If no active cases, check for any recent high-priority ones

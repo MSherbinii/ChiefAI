@@ -308,7 +308,12 @@ async def list_email_cases(user_id: str, status: Optional[str] = None):
     else:
         query = query.neq('status', 'resolved')
 
-    result = query.order('priority', desc=True).limit(50).execute()
+    result = query.limit(60).execute()
+    # Sort by priority weight (text ordering is alphabetical, wrong for priority)
+    PRIORITY_WEIGHT = {'critical': 4, 'high': 3, 'normal': 2, 'low': 1}
+    if result.data:
+        result.data.sort(key=lambda x: PRIORITY_WEIGHT.get(x.get('priority', 'normal'), 2), reverse=True)
+    result.data = result.data[:50]
     return {'cases': result.data or [], 'total': len(result.data or [])}
 
 
@@ -522,7 +527,10 @@ async def present_cases_summary(user_id: str):
     cases = sb.table('email_cases').select(
         'id, title, status, priority, category, summary, pending_action'
     ).eq('user_id', user_id).neq('status', 'resolved') \
-     .order('priority', desc=True).limit(10).execute()
+     .limit(15).execute()
+    if cases.data:
+        PRIORITY_WEIGHT_2 = {'critical': 4, 'high': 3, 'normal': 2, 'low': 1}
+        cases.data.sort(key=lambda x: PRIORITY_WEIGHT_2.get(x.get('priority', 'normal'), 2), reverse=True)
 
     subs = sb.table('email_subscriptions').select('id, sender_email, total_received, engagement_score') \
         .eq('user_id', user_id).eq('status', 'active') \
