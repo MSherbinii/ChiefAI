@@ -27,6 +27,7 @@ from document_extractor import extract_document_fields, DocumentExtractRequest, 
 from email_intelligence import deep_scan_inbox, get_scan_status, cluster_entities, detect_subscriptions
 from email_intelligence.case_discoverer import run_case_discovery
 from email_intelligence.cross_entity_reasoner import run_cross_entity_reasoning, merge_linked_cases
+from email_intelligence.pattern_scanner import create_cases_from_patterns, scan_for_patterns
 from supabase import create_client
 from datetime import datetime, timezone
 import asyncio
@@ -404,6 +405,32 @@ async def merge_email_cases(req: MergeCasesRequest):
     }).execute()
 
     return {'ok': True, 'master_case_id': master_id}
+
+
+@app.post('/email/pattern-scan')
+async def run_pattern_scan(req: EmailScanRequest):
+    """Pattern-first case discovery: scan all emails for dispute/billing/legal patterns."""
+    asyncio.create_task(create_cases_from_patterns(req.user_id))
+    return {'status': 'pattern_scan_started', 'user_id': req.user_id}
+
+
+@app.get('/email/pattern-groups/{user_id}')
+async def get_pattern_groups(user_id: str):
+    """Preview which email groups triggered pattern detection."""
+    groups = await scan_for_patterns(user_id)
+    return {
+        'groups': [
+            {
+                'domain': g['domain'],
+                'email_count': g['email_count'],
+                'importance': g['total_importance'],
+                'category': g['primary_category'],
+                'sample': g['sample_emails'][0]['subject'][:60] if g['sample_emails'] else '',
+            }
+            for g in groups[:20]
+        ],
+        'total': len(groups),
+    }
 
 
 @app.post('/email/unsubscribe')
