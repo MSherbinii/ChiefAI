@@ -230,7 +230,10 @@ async def run_case_discovery(user_id: str) -> dict:
                 existing = sb.table('email_cases').select('id').eq('user_id', user_id) \
                     .eq('title', case_data['title'][:200]).maybe_single().execute()
 
-                if existing.data:
+                # maybe_single() returns None (not object) when no rows found
+                existing_data = existing.data if existing is not None else None
+
+                if existing_data:
                     # Update existing case
                     sb.table('email_cases').update({
                         'status': case_data.get('status', 'open'),
@@ -242,7 +245,7 @@ async def run_case_discovery(user_id: str) -> dict:
                         'confidence': confidence,
                         'entities': [case_data['_entity_id']],
                         'updated_at': datetime.now(timezone.utc).isoformat(),
-                    }).eq('id', existing.data['id']).execute()
+                    }).eq('id', existing_data['id']).execute()
                 else:
                     # Insert new case
                     sb.table('email_cases').insert({
