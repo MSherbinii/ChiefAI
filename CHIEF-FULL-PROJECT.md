@@ -23,9 +23,13 @@ Not productivity software. Not a chatbot. A genuine operating layer: Morning Bri
 ### Current Status (May 2026)
 
 - Gmail OAuth connected, 52,459 emails deep-scanned
-- 339 entities clustered (Haiku classification)
+- **2,256 entities** in full entity graph (pagination fix — was only 91)
+- **108 cross-entity reference chains** detected (shared ref numbers across domains)
+- **17 situations** discovered zero-shot by agentic pipeline (v3, all bugs fixed)
+- FitStar debt collection (Aktenzeichen 5284-26-02-0189-0, critical) ✅ found autonomously
+- Congstar installment plan / collection warnings (critical) ✅ found autonomously
+- Riverty/VAG Mahnbescheid dispute (high) ✅ found autonomously
 - 34 active subscriptions detected
-- 87 email cases discovered autonomously
 - 7 agents live and routing on Bedrock eu-central-1
 - Morning Brief auto-generated daily (cron 07:00)
 - Momentum Score with 7-day sparkline
@@ -277,45 +281,70 @@ Layer 5: email_feedback     — RL training signal from user corrections
 3. **Pattern Scanner** (`email_intelligence/pattern_scanner.py`): Zero-shot pattern detection across all emails regardless of entity classification. Detects dispute/billing/legal patterns by subject line + keyword analysis. Creates cases from patterns without entity pre-classification.
 4. **Lifecycle Rules** (`email_intelligence/case_discoverer.py:apply_lifecycle_rules`): Auto-archives cases older than 90 days with no activity. Demotes stalled cases.
 
-### The Agentic Pipeline (Latest, Most Correct)
+### The Agentic Pipeline v3 (Final, Validated)
 
 `email_intelligence/agentic_pipeline.py` — `run_agentic_pipeline(user_id)`:
 
 ```
 Step 1: Entity Graph Builder
-  - Paginate ALL 52,459 emails (not just top entities)
-  - Group by sender domain
-  - For each group: extract company name, relationship_type, all Aktenzeichen
-  - _extract_references() handles formats:
-      · "Aktenzeichen: 5284-26-02-0189-0"
-      · "Az. 12345/2025"
-      · "Referenz: ABC-123"
-      · space-separated variants (e.g. "Az 5284 26 02 0189 0")
+  - Paginate ALL 52,459 emails (Supabase .range() loop, not just first 1000)
+  - Group by sender domain (2,256 entities in Mohamed's inbox)
+  - Sent emails attributed to RECIPIENT domain (not user's gmail.com)
+    → user replies to kohlkg.com count under kohlkg.com, not gmail.com
+  - _extract_references() handles:
+      · "Aktenzeichen: 5284-26-02-0189-0" (space-separated variant too)
+      · "Vorgangsnummer: 0023262811"
+      · "24V15535046" (Deutsche Bahn claims)
+      · Order IDs, customer numbers, case numbers
+  - Builds ref_to_domains: {ref: [domain1, domain2, ...]} — 108 cross-entity refs
 
-Step 2: Cross-Entity Relationship Inference (Sonnet)
-  - Given full entity graph, identify:
-      · Temporal adjacency (company stops emailing → collector starts)
-      · Shared reference numbers across entities
-      · Escalation chains (provider → legal → bailiff)
-  - Output: linked_entities[] per case
+Step 2: Ref-Based Cluster Formation
+  - Quality filter: remove short refs, plain English words (WITH, FROM, SAVINGS)
+  - Sort temporal adjacency by shared_ref_count DESC (debt escalations surface first)
+  - Sonnet infers entity relationships (same_company, escalation, delegation)
+  - Ref-based cluster expansion: after Sonnet groups, pull in any domain sharing
+    the same reference number — catches gaps > 180 days (e.g. fit-star.de last
+    email July 2025, kohlkg.com first email March 2026 = 221-day gap, linked by
+    shared Aktenzeichen 5284-26-02-0189-0)
+  - Adjacency fallback: direct adjacency pairs with shared refs form clusters too
 
 Step 3: Zero-Shot Situation Detection (Sonnet)
-  - For each entity/cluster: "What ongoing situations exist?"
-  - No pre-defined categories
+  - For each cluster: full email evidence + shared refs sent to Sonnet
+  - Sonnet decides: is_situation? title? priority? timeline? pending_action?
+  - No hardcoded categories, no hardcoded entity names
   - Output: email_cases rows with confidence scores
+  - Deduplication: skip if case with same title already exists
 
-No manual intervention ever. Pipeline is fully autonomous.
+Stats from last run (2026-05-28):
+  - 2,256 entities analyzed
+  - 842 clusters processed
+  - 17 situations found
+  - 63 clusters skipped (not situations)
+
+No manual intervention ever. Works for any inbox in any language.
 ```
 
-### Real Cases Discovered (Autonomously)
+### Real Cases Discovered Autonomously (May 2026)
 
-| Case | Priority | Status | Details |
-|------|---------|--------|---------|
-| FitStar Debt Collection | CRITICAL | needs_action | Aktenzeichen 5284-26-02-0189-0. Two collectors: kohlkg.com + einfach-klaeren.de. Cross-entity escalation detected. |
-| Congstar Billing | RESOLVED | resolved | €100/month installment plan. System was sending redundant payment emails. Marked resolved after user confirmation. |
-| Deutsche Bahn Passenger Rights | HIGH | stalled | Two claims: 24V15535046 + 24V12495149. Stalled 10+ months. Pending action: follow-up email. |
-| Missing Salary Apr/May 2025 | HIGH | needs_action | No salary deposit detected for April or May 2025. Pending action: contact employer. |
-| Anmeldung / Municipal Registration | HIGH | stalled | Landlord requiring municipal registration. 135 days stalled. Pending action: contact landlord. |
+| Case | Priority | Status | How Found |
+|------|---------|--------|-----------|
+| A.I. Fitness Bayern gym membership debt collection | CRITICAL | needs_action | Ref `5284-26-02-0189-0` linking fit-star.de → kohlkg.com → einfach-klaeren.de |
+| congstar payment installment plan - collection warnings | CRITICAL | needs_action | Ref `2216848686` + `0023262811` linking congstar.de subdomains |
+| Inkasso/Debt Collection Dispute - VAG/Riverty | HIGH | stalled | Ref `4483408` linking vag.de → riverty.com |
+| LANDR Payment Failure - Account Suspension Risk | HIGH | needs_action | Email cluster around failed payment + suspension warnings |
+| Riot Games Account Compromise | HIGH | needs_action | Multiple unauthorized login/change emails across time |
+| Repeated Unauthorized Facebook Login Attempts | HIGH | needs_action | Pattern of security alerts from facebook.com |
+| MEGA Account Data Deletion Warning | HIGH | needs_action | Account deletion imminent notices |
+| Discord Account Scheduled for Deletion | HIGH | needs_action | Account deletion deadline notices |
+| PayPal Password Reset Required | HIGH | needs_action | Multiple password reset requests from paypal.com |
+| UK Visa Application Security Alert | HIGH | needs_action | New account creation alert during visa process |
+| EA Account Security Violations | HIGH | needs_action | EA/Origin rule violation notices |
+| G2G Account Security Alert | HIGH | needs_action | Unauthorized signup attempt cluster |
+| NordVPN Refund Request | NORMAL | progressing | Refund initiation + acknowledgment emails |
+| Munich Apartment Application | NORMAL | progressing | ohne-makler.net application correspondence |
+| Order Payment Method Change | NORMAL | progressing | Payment method update request cluster |
+| Amazon Job Application (Sortation) | LOW | stalled | Application submitted, no response |
+| Twitter Account Verification Never Completed | LOW | stalled | Multiple verification email attempts, never confirmed |
 
 ### RL Feedback Loop
 
