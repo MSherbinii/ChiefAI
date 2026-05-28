@@ -324,6 +324,32 @@ async def get_email_case(case_id: str):
     return result.data
 
 
+@app.post('/email/case/{case_id}/resolve')
+async def resolve_case(case_id: str, req: CaseNoteRequest):
+    """User marks a case as resolved (with optional reason). Stores RL feedback."""
+    from supabase import create_client
+    import os as _os
+    sb = create_client(_os.getenv('SUPABASE_URL'), _os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
+
+    sb.table('email_cases').update({
+        'status': 'resolved',
+        'user_notes': req.note or 'Resolved by user',
+        'updated_at': datetime.now(timezone.utc).isoformat(),
+    }).eq('id', case_id).eq('user_id', req.user_id).execute()
+
+    sb.table('email_feedback').insert({
+        'user_id': req.user_id,
+        'feedback_type': 'case_reject',
+        'target_id': case_id,
+        'target_type': 'case',
+        'old_value': {'status': 'open'},
+        'new_value': {'status': 'resolved', 'reason': req.note},
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    }).execute()
+
+    return {'ok': True, 'case_id': case_id, 'status': 'resolved'}
+
+
 @app.post('/email/case/{case_id}/note')
 async def add_case_note(case_id: str, req: CaseNoteRequest):
     """Add user context/note to a case (RL signal: context_injection)."""
