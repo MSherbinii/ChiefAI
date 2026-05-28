@@ -453,11 +453,13 @@ async def run_agentic_pipeline(user_id: str) -> dict:
 
         # Check if similar case already exists
         title = result['title'][:200]
-        existing = sb.table('email_cases').select('id').eq('user_id', user_id) \
-            .eq('title', title).maybe_single().execute()
-
-        if existing.data:
-            continue
+        try:
+            existing = sb.table('email_cases').select('id').eq('user_id', user_id) \
+                .eq('title', title).maybe_single().execute()
+            if existing and existing.data:
+                continue
+        except Exception:
+            pass  # If check fails, proceed to insert
 
         # Save the case
         sb.table('email_cases').insert({
