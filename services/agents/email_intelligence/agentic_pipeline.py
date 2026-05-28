@@ -266,8 +266,10 @@ async def infer_entity_relationships(entity_graph: dict) -> list[dict]:
         return []
 
     # Prepare compact representation for Sonnet
+    # Sort adjacency: shared-ref connections first (most interesting), then by gap size
+    sorted_adjacency = sorted(adjacency, key=lambda x: (len(x.get('shared_refs', [])), -x.get('days_between', 0)), reverse=True)
     adj_lines = []
-    for adj in adjacency[:30]:
+    for adj in sorted_adjacency[:30]:
         d1_info = entity_graph['entities'].get(adj['domain_1'], {})
         d2_info = entity_graph['entities'].get(adj['domain_2'], {})
         line = f"{adj['domain_1']} (last email: {d1_info.get('last_seen','?')[:10]}) → {adj['domain_2']} (first email: {d2_info.get('first_seen','?')[:10]}, days_between={adj['days_between']})"
@@ -275,7 +277,20 @@ async def infer_entity_relationships(entity_graph: dict) -> list[dict]:
             line += f" [SHARED REFS: {adj['shared_refs'][:3]}]"
         adj_lines.append(line)
 
-    ref_lines = [f"{ref}: {', '.join(domains)}" for ref, domains in list(shared_refs.items())[:20]]
+    # Filter refs: prefer structured IDs (digits+dashes, >= 6 chars, not plain English words)
+    # Sort by: multi-domain refs first, then length (longer = more specific)
+    ENGLISH_STOPWORDS = {'WITH', 'FROM', 'INTO', 'OVER', 'UNDER', 'SAVINGS', 'SEMESTER', 'GRADE', 'NOTES', 'ONLINE'}
+    quality_refs = {
+        ref: domains for ref, domains in shared_refs.items()
+        if (
+            len(ref) >= 6
+            and ref not in ENGLISH_STOPWORDS
+            and not ref.isalpha()  # must contain at least one digit or dash
+        )
+    }
+    # Sort: most domains first (most connected), then longer refs (more specific)
+    sorted_refs = sorted(quality_refs.items(), key=lambda x: (len(x[1]), len(x[0])), reverse=True)
+    ref_lines = [f"{ref}: {', '.join(domains)}" for ref, domains in sorted_refs[:25]]
 
     prompt = RELATIONSHIP_INFERENCE_PROMPT.format(
         adjacency_data='\n'.join(adj_lines) if adj_lines else 'None',
@@ -442,17 +457,49 @@ async def run_agentic_pipeline(user_id: str) -> dict:
     relationships = await infer_entity_relationships(entity_graph)
 
     # Step 3: Build clusters from relationships
-    # Start with related clusters, then add isolated entities with high interaction
     processed_domains = set()
     clusters = []
 
-    # Add relationship-based clusters
+    # Build domain→refs reverse index for expansion
+    domain_to_refs: dict[str, set] = {}
+    for ref, domains in entity_graph.get('ref_to_domains', {}).items():
+        for d in domains:
+            if d not in domain_to_refs:
+                domain_to_refs[d] = set()
+            domain_to_refs[d].add(ref)
+
+    def expand_cluster_by_refs(cluster_domains: list[str]) -> list[str]:
+        """Add any domains that share refs with cluster members."""
+        cluster_refs = set()
+        for d in cluster_domains:
+            cluster_refs.update(domain_to_refs.get(d, set()))
+        expanded = set(cluster_domains)
+        for ref, ref_domains in entity_graph.get('ref_to_domains', {}).items():
+            if ref in cluster_refs:
+                for d in ref_domains:
+                    if d != 'sent_unknown' and d in entities:
+                        expanded.add(d)
+        return list(expanded)
+
+    # Add relationship-based clusters, then expand each by shared refs
     for rel in relationships:
         if rel.get('confidence', 0) >= 0.5:
             cluster_domains = rel.get('domains', [])
             if cluster_domains:
-                clusters.append(cluster_domains)
-                processed_domains.update(cluster_domains)
+                expanded = expand_cluster_by_refs(cluster_domains)
+                clusters.append(expanded)
+                processed_domains.update(expanded)
+
+    # Also add adjacency-based clusters not caught by Sonnet inference
+    for adj in entity_graph.get('temporal_adjacency', []):
+        if adj.get('shared_refs'):
+            d1, d2 = adj['domain_1'], adj['domain_2']
+            if d1 not in processed_domains or d2 not in processed_domains:
+                base = [d for d in [d1, d2] if d in entities]
+                if base:
+                    expanded = expand_cluster_by_refs(base)
+                    clusters.append(expanded)
+                    processed_domains.update(expanded)
 
     # Add isolated entities that have sent emails (user interacted) or have high volume
     for domain, info in entities.items():
