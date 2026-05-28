@@ -4,6 +4,7 @@ from .subscription_detector import detect_subscriptions
 from .case_discoverer import run_case_discovery, discover_cases_for_entity
 from .cross_entity_reasoner import run_cross_entity_reasoning, merge_linked_cases
 from .pattern_scanner import scan_for_patterns, create_cases_from_patterns
+from .agentic_pipeline import run_agentic_pipeline, build_email_entity_graph, infer_entity_relationships
 
 __all__ = [
     'deep_scan_inbox', 'get_scan_status',
@@ -12,4 +13,5 @@ __all__ = [
     'run_case_discovery', 'discover_cases_for_entity',
     'run_cross_entity_reasoning', 'merge_linked_cases',
     'scan_for_patterns', 'create_cases_from_patterns',
+    'run_agentic_pipeline', 'build_email_entity_graph', 'infer_entity_relationships',
 ]

@@ -28,6 +28,7 @@ from email_intelligence import deep_scan_inbox, get_scan_status, cluster_entitie
 from email_intelligence.case_discoverer import run_case_discovery, apply_lifecycle_rules
 from email_intelligence.cross_entity_reasoner import run_cross_entity_reasoning, merge_linked_cases
 from email_intelligence.pattern_scanner import create_cases_from_patterns, scan_for_patterns
+from email_intelligence.agentic_pipeline import run_agentic_pipeline
 from supabase import create_client
 from datetime import datetime, timezone
 import asyncio
@@ -443,6 +444,16 @@ async def run_pattern_scan(req: EmailScanRequest):
     """Pattern-first case discovery: scan all emails for dispute/billing/legal patterns."""
     asyncio.create_task(create_cases_from_patterns(req.user_id))
     return {'status': 'pattern_scan_started', 'user_id': req.user_id}
+
+
+@app.post('/email/agentic-discovery')
+async def start_agentic_discovery(req: EmailScanRequest):
+    """
+    Full agentic pipeline: build entity graph → infer relationships → detect situations.
+    This is the correct zero-shot approach that finds cross-entity cases automatically.
+    """
+    asyncio.create_task(run_agentic_pipeline(req.user_id))
+    return {'status': 'agentic_discovery_started', 'user_id': req.user_id}
 
 
 @app.post('/email/lifecycle')
