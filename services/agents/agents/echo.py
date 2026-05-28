@@ -37,22 +37,29 @@ CASE_QUERY_KEYWORDS = [
 async def _fetch_cases_context(user_id: str, query: str) -> str:
     """
     Query email_cases for relevant cases based on user's message.
-    Returns formatted case context for Echo.
+    Applies smart filtering: active/recent cases, relevance scoring.
     """
     sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    now = datetime.now(timezone.utc)
+    cutoff_active = (now - timedelta(days=365)).isoformat()  # Only show cases from last year by default
 
-    # Get all non-resolved cases ordered by priority
+    # Get active non-resolved cases
     cases = sb.table('email_cases').select(
-        'id, title, status, priority, category, summary, pending_action, stalled_since, timeline, entities, confidence'
+        'id, title, status, priority, category, summary, pending_action, stalled_since, timeline, entities, confidence, updated_at'
     ).eq('user_id', user_id) \
      .neq('status', 'resolved') \
      .order('priority', desc=True) \
-     .limit(20).execute()
+     .limit(30).execute()
 
     if not cases.data:
-        return ''
+        # If no active cases, check for any recent high-priority ones
+        cases = sb.table('email_cases').select(
+            'id, title, status, priority, summary, pending_action'
+        ).eq('user_id', user_id).in_('priority', ['critical', 'high']).limit(10).execute()
+        if not cases.data:
+            return ''
 
-    PRIORITY_EMOJI = {'critical': '🔴', 'high': '🟠', 'normal': '🟡', 'low': '🟢'}
+    PRIORITY_EMOJI = {'critical': 'CRITICAL', 'high': 'HIGH', 'normal': 'NORMAL', 'low': 'LOW'}
     STATUS_LABEL = {
         'open': 'Open', 'progressing': 'In Progress',
         'stalled': 'STALLED', 'needs_action': 'ACTION NEEDED', 'resolved': 'Resolved'
@@ -60,60 +67,66 @@ async def _fetch_cases_context(user_id: str, query: str) -> str:
 
     lines = ['=== ACTIVE CASES (from email analysis) ===']
 
-    # If query seems to be about a specific entity/topic, filter to relevant cases
+    # Score relevance against query
     query_lower = query.lower()
-    relevant_cases = []
-    all_cases = cases.data
+    query_words = [w for w in query_lower.split() if len(w) > 3]
 
-    for case in all_cases:
+    scored_cases = []
+    for case in cases.data:
         title_lower = (case.get('title') or '').lower()
         summary_lower = (case.get('summary') or '').lower()
-        # Check if any word from query matches title or summary
-        query_words = [w for w in query_lower.split() if len(w) > 3]
-        if any(w in title_lower or w in summary_lower for w in query_words):
-            relevant_cases.append(case)
 
-    # If we found relevant cases, show those first; otherwise show all
-    display_cases = relevant_cases if relevant_cases else all_cases[:5]
+        # Relevance score
+        relevance = sum(1 for w in query_words if w in title_lower or w in summary_lower)
 
-    for case in display_cases[:5]:
-        emoji = PRIORITY_EMOJI.get(case.get('priority', 'normal'), '🟡')
+        # Priority weight
+        priority_weight = {'critical': 4, 'high': 3, 'normal': 2, 'low': 1}.get(case.get('priority', 'normal'), 2)
+
+        # Status weight (needs_action > stalled > progressing > open)
+        status_weight = {'needs_action': 3, 'stalled': 2, 'progressing': 2, 'open': 1}.get(case.get('status', 'open'), 1)
+
+        scored_cases.append((relevance * 10 + priority_weight + status_weight, case))
+
+    scored_cases.sort(key=lambda x: x[0], reverse=True)
+    display_cases = [c for _, c in scored_cases[:7]]  # Show top 7
+
+    for case in display_cases:
+        priority = PRIORITY_EMOJI.get(case.get('priority', 'normal'), 'NORMAL')
         status = STATUS_LABEL.get(case.get('status', 'open'), 'Open')
         title = case.get('title', 'Unnamed case')
         summary = case.get('summary', '')
         pending = case.get('pending_action')
         stalled = case.get('stalled_since')
 
-        lines.append(f'\n{emoji} Case: {title}')
+        lines.append(f'\n[{priority}] Case: {title}')
         lines.append(f'   Status: {status}')
         if summary:
-            lines.append(f'   Summary: {summary[:200]}')
+            lines.append(f'   {summary[:180]}')
         if pending:
-            lines.append(f'   → Pending: {pending}')
+            lines.append(f'   -> Action needed: {pending}')
         if stalled:
-            stalled_date = stalled[:10] if stalled else ''
             try:
                 stalled_dt = datetime.fromisoformat(stalled.replace('Z', '+00:00'))
-                days_stalled = (datetime.now(timezone.utc) - stalled_dt).days
-                lines.append(f'   ⏸ Stalled for {days_stalled} days (since {stalled_date})')
+                days_stalled = (now - stalled_dt).days
+                lines.append(f'   STALLED for {days_stalled} days')
             except Exception:
-                lines.append(f'   ⏸ Stalled since {stalled_date}')
+                pass
 
-        # Include timeline for specific case queries
-        if relevant_cases and case in relevant_cases:
+        # Include timeline for specific queries
+        if query_words and any(w in (case.get('title', '') + case.get('summary', '')).lower() for w in query_words):
             timeline = case.get('timeline', []) or []
             if timeline:
                 lines.append('   Timeline:')
-                for event in timeline[-5:]:  # Last 5 events
+                for event in timeline[-5:]:
                     d = event.get('date', '')[:10]
                     ev = event.get('event', '')[:100]
-                    direction = '→' if event.get('direction') == 'sent' else '←'
+                    direction = '->' if event.get('direction') == 'sent' else '<-'
                     lines.append(f'     {d} {direction} {ev}')
 
     if not display_cases:
         lines.append('No active cases found.')
 
-    lines.append('\nIMPORTANT: These cases are derived from real email analysis. Use them to answer case-specific questions with full context.')
+    lines.append('\nIMPORTANT: These are REAL cases from email analysis. Reference them directly in your answer.')
     return '\n'.join(lines)
 
 

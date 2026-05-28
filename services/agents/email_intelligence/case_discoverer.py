@@ -167,6 +167,87 @@ Identify any active cases for this organization."""
         return []
 
 
+async def apply_lifecycle_rules(user_id: str) -> dict:
+    """
+    Apply staleness and resolution rules to cases.
+    Automatically archives/resolves old cases based on signals.
+    Returns summary of changes made.
+    """
+    sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    now = datetime.now(timezone.utc)
+
+    cases = sb.table('email_cases').select(
+        'id, title, status, priority, created_at, updated_at, email_ids, timeline, confidence'
+    ).eq('user_id', user_id).execute()
+
+    archived = 0
+    demoted = 0
+
+    for case in (cases.data or []):
+        case_id = case['id']
+        status = case.get('status', 'open')
+        priority = case.get('priority', 'normal')
+        confidence = case.get('confidence', 0.5)
+
+        # Parse created_at
+        created_str = case.get('created_at') or case.get('updated_at') or ''
+        try:
+            created = datetime.fromisoformat(created_str.replace('Z', '+00:00'))
+            age_days = (now - created).days
+        except Exception:
+            age_days = 0
+
+        # Get last activity from timeline
+        timeline = case.get('timeline') or []
+        last_activity_days = age_days
+        if timeline:
+            try:
+                last_date_str = timeline[-1].get('date', '')
+                if last_date_str:
+                    last_date = datetime.fromisoformat(last_date_str)
+                    if last_date.tzinfo is None:
+                        last_date = last_date.replace(tzinfo=timezone.utc)
+                    last_activity_days = (now - last_date).days
+            except Exception:
+                pass
+
+        # Rule 1: Very old low-confidence cases → archive
+        if confidence < 0.5 and last_activity_days > 365 and priority in ('low', 'normal'):
+            sb.table('email_cases').update({
+                'status': 'resolved',
+                'user_notes': f'Auto-archived: low confidence ({confidence:.0%}) + {last_activity_days} days inactive',
+                'updated_at': now.isoformat(),
+            }).eq('id', case_id).execute()
+            archived += 1
+            continue
+
+        # Rule 2: Old non-critical cases with no emails in 2+ years → archive
+        if last_activity_days > 730 and priority not in ('critical', 'high'):
+            sb.table('email_cases').update({
+                'status': 'resolved',
+                'user_notes': f'Auto-archived: {last_activity_days} days since last activity',
+                'updated_at': now.isoformat(),
+            }).eq('id', case_id).execute()
+            archived += 1
+            continue
+
+        # Rule 3: Medium-age open cases with no emails in 1 year + low importance → demote to low
+        if last_activity_days > 365 and priority == 'normal' and status == 'open':
+            sb.table('email_cases').update({
+                'priority': 'low',
+                'status': 'stalled',
+                'stalled_since': now.isoformat(),
+                'updated_at': now.isoformat(),
+            }).eq('id', case_id).execute()
+            demoted += 1
+
+    return {
+        'user_id': user_id,
+        'cases_archived': archived,
+        'cases_demoted': demoted,
+    }
+
+
 async def run_case_discovery(user_id: str) -> dict:
     """
     Run case discovery for all active non-newsletter entities.

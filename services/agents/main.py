@@ -25,7 +25,7 @@ from knowledge_extractor import run_background_extraction
 from hierarchy import get_pending_tasks, delegate_task, AGENT_HIERARCHY
 from document_extractor import extract_document_fields, DocumentExtractRequest, ExtractedDocument
 from email_intelligence import deep_scan_inbox, get_scan_status, cluster_entities, detect_subscriptions
-from email_intelligence.case_discoverer import run_case_discovery
+from email_intelligence.case_discoverer import run_case_discovery, apply_lifecycle_rules
 from email_intelligence.cross_entity_reasoner import run_cross_entity_reasoning, merge_linked_cases
 from email_intelligence.pattern_scanner import create_cases_from_patterns, scan_for_patterns
 from supabase import create_client
@@ -412,6 +412,13 @@ async def run_pattern_scan(req: EmailScanRequest):
     """Pattern-first case discovery: scan all emails for dispute/billing/legal patterns."""
     asyncio.create_task(create_cases_from_patterns(req.user_id))
     return {'status': 'pattern_scan_started', 'user_id': req.user_id}
+
+
+@app.post('/email/lifecycle')
+async def run_lifecycle(req: EmailScanRequest):
+    """Apply lifecycle rules: archive old cases, demote stale ones."""
+    result = await apply_lifecycle_rules(req.user_id)
+    return result
 
 
 @app.get('/email/pattern-groups/{user_id}')
