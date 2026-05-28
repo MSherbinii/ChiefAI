@@ -306,7 +306,7 @@ async def list_email_cases(user_id: str, status: Optional[str] = None):
     if status:
         query = query.eq('status', status)
     else:
-        query = query.not_.is_('status', 'resolved')
+        query = query.neq('status', 'resolved')
 
     result = query.order('priority', desc=True).limit(50).execute()
     return {'cases': result.data or [], 'total': len(result.data or [])}
@@ -495,7 +495,7 @@ async def present_cases_summary(user_id: str):
 
     cases = sb.table('email_cases').select(
         'id, title, status, priority, category, summary, pending_action'
-    ).eq('user_id', user_id).not_.is_('status', 'resolved') \
+    ).eq('user_id', user_id).neq('status', 'resolved') \
      .order('priority', desc=True).limit(10).execute()
 
     subs = sb.table('email_subscriptions').select('id, sender_email, total_received, engagement_score') \
