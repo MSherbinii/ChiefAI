@@ -28,20 +28,22 @@ SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 def _extract_references(text: str) -> set:
     """Extract all reference numbers, case numbers, order IDs from email text."""
     patterns = [
-        r'\b([A-Z]{1,4}[-/]\d{4,15})\b',           # DE-12345, AZ-123456789
-        r'\baktenzeichen[:\s]+([A-Z0-9\-\.]+)',      # Aktenzeichen: 5284-26-02-0189
-        r'\b(\d{4}-\d{2}-\d{2}-\d{4}-\d)',          # 5284-26-02-0189-0 format
-        r'\bvorgang[:\s#]+([A-Z0-9\-]+)',            # Vorgangsnummer: 0023262811
-        r'\bkunden(?:nummer)?[:\s]+(\d{7,12})',      # Kundennummer: 2216848686
-        r'\border[:\s#]+(\d{8,15})',                 # Order: 558972690008
-        r'\b(24V\d{8})\b',                           # 24V15535046 (Deutsche Bahn claim format)
+        r'\b([A-Z]{1,4}[-/]\d{4,15})\b',              # DE-12345, AZ-123456789
+        r'\baktenzeichen[:\s]+([A-Z0-9\-\.\/\s]{4,25})',  # Aktenzeichen: 5284-26-02-0189 (with spaces)
+        r'\b(\d{4}[-\s]\d{2}[-\s]\d{2}[-\s]\d{4}[-\s]\d)',  # 5284-26-02-0189-0 or 5284 26 02 0189 0
+        r'\bvorgangs?(?:nummer)?[:\s#]+([A-Z0-9\-]{6,15})',   # Vorgangsnummer: 0023262811
+        r'\bkunden(?:nummer)?[:\s]+(\d{7,12})',         # Kundennummer: 2216848686
+        r'\border[:\s#]+(\d{8,15})',                    # Order: 558972690008
+        r'\b(24V\d{8})\b',                              # 24V15535046 (Deutsche Bahn claim)
+        r'\b([A-Z]{2,4}\d{8,12})\b',                   # Generic alphanumeric IDs
+        r'\bauftrag[:\s#]+([A-Z0-9\-]{6,20})',          # Auftragsnummer
+        r'\bfall[:\s#]+([A-Z0-9\-]{4,15})',             # Fallnummer
     ]
     refs = set()
-    text_lower = text.lower()
     for p in patterns:
-        for m in re.finditer(p, text_lower, re.IGNORECASE):
-            ref = m.group(1).upper()
-            if len(ref) >= 4:
+        for m in re.finditer(p, text, re.IGNORECASE):
+            ref = re.sub(r'\s+', '-', m.group(1).strip().upper())
+            if len(ref) >= 4 and len(ref) <= 30:
                 refs.add(ref)
     return refs
 
@@ -81,10 +83,24 @@ async def build_email_entity_graph(user_id: str) -> dict:
     """
     sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-    # Fetch all emails
-    emails = sb.table('email_raw').select(
-        'id, from_email, subject, body_text, snippet, date, is_sent, thread_id, to_emails'
-    ).eq('user_id', user_id).order('date').execute()
+    # Fetch ALL emails with pagination (Supabase default limit is 1000 rows)
+    all_email_data = []
+    page_size = 1000
+    offset = 0
+    while True:
+        page = sb.table('email_raw').select(
+            'id, from_email, subject, body_text, snippet, date, is_sent, thread_id'
+        ).eq('user_id', user_id).order('date').range(offset, offset + page_size - 1).execute()
+        if not page.data:
+            break
+        all_email_data.extend(page.data)
+        if len(page.data) < page_size:
+            break
+        offset += page_size
+
+    class _Wrapper:
+        data = all_email_data
+    emails = _Wrapper()
 
     if not emails.data:
         return {'entities': {}, 'ref_to_domains': {}, 'temporal_adjacency': []}
