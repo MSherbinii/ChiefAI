@@ -45,7 +45,7 @@ async def _fetch_cases_context(user_id: str, query: str) -> str:
     cases = sb.table('email_cases').select(
         'id, title, status, priority, category, summary, pending_action, stalled_since, timeline, entities, confidence'
     ).eq('user_id', user_id) \
-     .not_.is_('status', 'resolved') \
+     .neq('status', 'resolved') \
      .order('priority', desc=True) \
      .limit(20).execute()
 
